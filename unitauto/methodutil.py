@@ -213,7 +213,7 @@ def parse_method(func) -> dict:
     name = func.__name__
     return {
         KEY_STATIC: static,
-        KEY_RETURN: rt,
+        'returnType': rt,
         KEY_METHOD: name,
         KEY_NAME: name,
         'types': types if static else types[1:],
