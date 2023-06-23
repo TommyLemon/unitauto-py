@@ -24,6 +24,7 @@
 import json
 import time
 import inspect
+from typing import Type
 
 null = None
 false = False
@@ -73,6 +74,17 @@ KEY_METHOD_TOTAL = "methodTotal"
 KEY_PACKAGE_LIST = "packageList"
 KEY_CLASS_LIST = "classList"
 KEY_METHOD_LIST = "methodList"
+
+CLASS_MAP = {
+    None: any,
+    'None': any,
+    'any': any,
+    'bool': bool,
+    'int': int,
+    'str': str,
+    'list': list,
+    'dict': dict
+}
 
 
 def list_method(req) -> dict:
@@ -343,7 +355,7 @@ def invoke_method(req: any) -> dict:
             KEY_MSG: str(e),
             KEY_TIME_DETAIL: get_time_detail(start_time),
             KEY_THROW: e.__class__.__name__,
-            # KEY_TRACE: e.__traceback__.__str__
+            # KEY_TRACE: e.__traceback__.__str__()
         }
 
 
@@ -367,30 +379,7 @@ def init_args(method_args, ma_types, ma_values):
                 value = arg.get(KEY_VALUE) if id else arg
                 # ma_values.append(arg.get(KEY_VALUE) if id else arg)
 
-            fl = split(typ, '$')
-            l = size(fl)
-            clazz = null
-            if l <= 0:
-                clazz = type(arg)
-            else:
-                package = fl[0]
-                pl = split(package, '.')
-
-                end = size(pl) - 1
-                cn = null if end < 0 else pl[end]
-                # package = package[:-len(cn)]
-
-                mn = fl[0]  # package if is_empty(fl) else package + '.' + cn
-                module = __import__(mn, fromlist=cn)
-                if l <= 1:
-                    clazz = getattr(module, cn)
-                else:
-                    j = -1
-                    for n in fl:
-                        j += 1
-                        if j <= 0:
-                            continue
-                        clazz = getattr(module, n)
+            clazz = get_class(typ, value)
 
             if value is not None and not isinstance(value, clazz):
                 try:
@@ -402,6 +391,40 @@ def init_args(method_args, ma_types, ma_values):
 
             ma_types[i] = clazz
             ma_values[i] = value
+
+
+def get_class(typ: str, value: any = None) -> Type:
+    fl = split(typ, '$')
+    if is_empty(fl):
+        return type(value)
+
+    path = typ
+    clazz = CLASS_MAP.get(path)
+    if clazz is None:
+        fl = split(path, '$')
+        pkg = fl[0]
+
+        pl = split(pkg, '.')
+        end = size(pl) - 1
+        cn = null if end < 0 else pl[end]
+        # pkg = pkg[:-len(cn)]
+
+        l = size(fl)
+        mn = fl[0]  # pkg if is_empty(fl) else pkg + '.' + cn
+        module = __import__(mn, fromlist=cn)
+        if l <= 1:
+            clazz = getattr(module, cn)
+        else:
+            j = -1
+            for n in fl:
+                j += 1
+                if j <= 0:
+                    continue
+                clazz = getattr(module, n)
+
+        CLASS_MAP[path] = clazz
+
+    return clazz
 
 
 def split(s: str, seperator: str = ',') -> list:
