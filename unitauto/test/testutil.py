@@ -1,4 +1,28 @@
 # encoding=utf-8
+# MIT License
+#
+# Copyright (c) 2023 TommyLemon
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
+import json
+from json import JSONDecoder
+from typing import Callable, Any
 
 
 def test():
@@ -33,15 +57,20 @@ def divide(a: float, b: float):
     return a / b
 
 
-class Test:
+class Test(JSONDecoder):
     id: int
     sex: int
     name: str
 
     def __init__(self, id: int = 0, sex: int = 0, name: str = ''):
+        super().__init__()
         self.id = id
         self.sex = sex
         self.name = name
+
+    def decode(self, s: str, _w: Callable[..., Any] = ...) -> Any:
+        args = json.loads(s)
+        return Test(**args)
 
     def get_id(self) -> int:
         return self.id
@@ -60,3 +89,7 @@ class Test:
 
     def get_sex_str(self) -> str:
         return 'Male' if self.is_male() else 'Female'
+
+
+def get_test_instance(id: int = 0, sex: int = 0, name: str = '') -> Test:
+    return Test(id=id, sex=sex, name=name)

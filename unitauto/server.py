@@ -1,4 +1,25 @@
 # encoding=utf-8
+# MIT License
+#
+# Copyright (c) 2023 TommyLemon
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 import json
 from unitauto import methodutil
@@ -61,53 +82,78 @@ class Request(BaseHTTPRequestHandler):
         self.wfile.write(rsp_str.encode())
 
 
-def start_server(host=HOST):
+def start(host=HOST):
     server = HTTPServer(host, Request)
     print("Starting server, listen at: %s:%s" % host)
     server.serve_forever()
 
 
 def test():
-    rsp0 = invoke_method({
-        KEY_PACKAGE: 'unitauto.test',
-        KEY_METHOD: 'test'
-    })
-    print('unitauto.test.test() = \n' + to_json_str(rsp0))
+    # rsp0 = invoke_method({
+    #     KEY_PACKAGE: 'unitauto.test',
+    #     KEY_METHOD: 'test'
+    # })
+    # print('unitauto.test.test() = \n' + to_json_str(rsp0))
+    #
+    # rsp1 = invoke_method({
+    #     KEY_PACKAGE: 'unitauto.test',
+    #     KEY_CLASS: 'testutil',
+    #     KEY_METHOD: 'minus',
+    #     KEY_METHOD_ARGS: [
+    #         {
+    #             KEY_TYPE: 'int',
+    #             KEY_VALUE: 2
+    #         },
+    #         {
+    #             KEY_TYPE: 'int',
+    #             KEY_VALUE: 3
+    #         }
+    #     ]
+    # })
+    # print('unitauto.test.testutil.add(2, 3) = \n' + to_json_str(rsp1))
+    #
+    # rsp2 = invoke_method({
+    #     KEY_PACKAGE: 'unitauto.test',
+    #     KEY_CLASS: 'testutil$Test',
+    #     KEY_CLASS_ARGS: [
+    #         1,
+    #         0,
+    #         'UnitAuto'
+    #     ],
+    #     KEY_METHOD: 'get_id'
+    # })
+    # print('unitauto.test.testutil.Test.get_id() = \n' + to_json_str(rsp2))
+    #
+    # rsp3 = invoke_method({
+    #     KEY_PACKAGE: 'unitauto.test',
+    #     KEY_CLASS: 'testutil$Test',
+    #     KEY_CONSTRUCTOR: 'get_test_instance',
+    #     KEY_CLASS_ARGS: [
+    #         2,
+    #         1,
+    #         'UnitAuto@Python'
+    #     ],
+    #     KEY_METHOD: 'get_name'
+    # })
+    # print('unitauto.test.testutil.Test.get_name() = \n' + to_json_str(rsp3))
 
-    rsp1 = invoke_method({
-        KEY_PACKAGE: 'unitauto.test',
-        KEY_CLASS: 'testutil',
-        KEY_METHOD: 'minus',
-        KEY_METHOD_ARGS: [
-            {
-                KEY_TYPE: 'int',
-                KEY_VALUE: 2
-            },
-            {
-                KEY_TYPE: 'int',
-                KEY_VALUE: 3
-            }
-        ]
-    })
-    print('unitauto.test.testutil.add(2, 3) = \n' + to_json_str(rsp1))
-
-    rsp2 = invoke_method({
+    rsp4 = invoke_method({
         KEY_PACKAGE: 'unitauto.test',
         KEY_CLASS: 'testutil$Test',
         KEY_THIS: {
-            KEY_TYPE: 'unitauto.test.testutil$Test',
+            KEY_TYPE: 'unitauto.test$Test',
             KEY_VALUE: {
-                'id': 1,
-                'sex': 0,
+                'id': 3,
+                'sex': 1,
                 'name': 'UnitAuto'
             }
         },
         KEY_METHOD: 'get_sex_str'
     })
-    print('unitauto.test.testutil.Test.get_sex_str() = \n' + to_json_str(rsp2))
+    print('unitauto.test.testutil.Test.get_sex_str() = \n' + to_json_str(rsp4))
 
 
 if __name__ == '__main__':
-    # test()
-    start_server()
+    test()
+    start()
 

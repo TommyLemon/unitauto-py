@@ -1,4 +1,25 @@
 # encoding=utf-8
+# MIT License
+#
+# Copyright (c) 2023 TommyLemon
+#
+# Permission is hereby granted, free of charge, to any person obtaining a copy
+# of this software and associated documentation files (the "Software"), to deal
+# in the Software without restriction, including without limitation the rights
+# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+# copies of the Software, and to permit persons to whom the Software is
+# furnished to do so, subject to the following conditions:
+#
+# The above copyright notice and this permission notice shall be included in all
+# copies or substantial portions of the Software.
+#
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+# SOFTWARE.
 
 import json
 import time
@@ -83,13 +104,12 @@ def list_method(req) -> dict:
         is_all_mtd = is_empty(method)
 
         fl = split(clazz, '$')
-        l = size(fl)
 
         if is_all_pkg:
             module = None
         else:
-            mn = package if l <= 0 else package + '.' + fl[0]
-            module = __import__(mn, fromlist=['__init__'] if l <= 0 else fl[0])
+            mn = package if is_empty(fl) else package + '.' + fl[0]
+            module = __import__(mn, fromlist=['__init__'] if is_empty(fl) else fl[0])
         mdl_list = dir(module)
 
         l = size(mdl_list)
@@ -227,28 +247,45 @@ def invoke_method(req: any) -> dict:
         if is_str(req):
             req = parse_json(req)
 
+        static = req.get(KEY_STATIC)
+        assert is_bool(static), (KEY_STATIC + ' must be bool!')
+
         package = req.get(KEY_PACKAGE)
-        # 是否切换？ assert is_str(package), KEY_PACKAGE + ' must be str!'
-        if not is_str(package):
-            raise Exception(KEY_PACKAGE + ' must be str!')
+        assert is_str(package), (KEY_PACKAGE + ' must be str!')
 
         clazz = req.get(KEY_CLASS)
-        if not is_str(clazz):
-            raise Exception(KEY_CLASS + ' must be str!')
+        assert is_str(clazz), (KEY_CLASS + ' must be str!')
 
         method = req.get(KEY_METHOD)
-        if not is_str(method):
-            raise Exception(KEY_METHOD + ' must be str!')
-        if is_empty(method):
-            raise Exception(KEY_CLASS + ' method be empty!')
+        assert is_str(method), (KEY_METHOD + ' must be str!')
+        assert not_empty(method), (KEY_CLASS + ' method be empty!')
 
         class_args = req.get(KEY_CLASS_ARGS)
-        if not is_list(class_args):
-            raise Exception(KEY_CLASS_ARGS + ' must be list!')
+        assert is_list(class_args), (KEY_CLASS_ARGS + ' must be list!')
 
         method_args = req.get(KEY_METHOD_ARGS)
-        if not is_list(method_args):
-            raise Exception(KEY_METHOD_ARGS + ' must be list!')
+        assert is_list(method_args), (KEY_METHOD_ARGS + ' must be list!')
+
+        constructor = req.get(KEY_CONSTRUCTOR)
+        assert is_str(constructor), (KEY_CONSTRUCTOR + ' must be str!')
+
+        this = req.get(KEY_THIS)
+        assert is_dict(this), (KEY_THIS + ' must be dict!')
+
+        instance = None
+        if this is not None:
+            assert not static, KEY_STATIC + ' cannot appear together with ' + KEY_THIS + '!'
+            assert class_args is None, KEY_THIS + ' cannot appear together with ' + KEY_CLASS_ARGS + '!'
+            assert constructor is None, KEY_THIS + ' cannot appear together with ' + KEY_CONSTRUCTOR + '!'
+
+            this_types = [null]
+            this_values = [null]
+            init_args([this], this_types, this_values)
+            instance = this_values[0]
+
+        if class_args is not None:
+            assert not static, KEY_CLASS_ARGS + ' cannot appear together with ' + KEY_STATIC + '!'
+            assert this is None, KEY_CLASS_ARGS + ' cannot appear together with ' + KEY_THIS + '!'
 
         mal = size(method_args)
         ma_types = [null] * mal
@@ -272,13 +309,19 @@ def invoke_method(req: any) -> dict:
 
         if cls is None:
             func = getattr(module, method)
+        elif static:
+            func = getattr(cls, method)
         else:
-            cal = size(class_args)
-            ca_types = [null] * cal
-            ca_values = [null] * cal
-            init_args(class_args, ca_types, ca_values)
+            constructor_func = None if constructor is None else getattr(module, constructor)
 
-            func = getattr(cls(*ca_values), method)
+            if instance is None:
+                cal = size(class_args)
+                ca_types = [null] * cal
+                ca_values = [null] * cal
+                init_args(class_args, ca_types, ca_values)
+                instance = cls(*ca_values) if constructor_func is None else constructor_func(*ca_values)
+
+            func = getattr(instance, method)
 
         start_time = time.time_ns()
         result = func(*ma_values)
@@ -310,18 +353,55 @@ def init_args(method_args, ma_types, ma_values):
         i = -1
         for arg in method_args:
             i += 1
+            value = null
             if is_str(arg) and arg.__contains__(':'):
                 ind = arg.index(':')
-                ma_types[i] = arg[:ind] if ind >= 0 else 'str'
+                typ = arg[:ind] if ind >= 0 else null
                 # ma_types.append(arg[:ind] if ind >= 0 else 'str')
-                ma_values[i] = arg[ind+1:] if ind >= 0 else arg
+                value = arg[ind+1:] if ind >= 0 else arg
                 # ma_values.append(arg[ind + 1:] if ind >= 0 else arg)
             else:
                 id = is_dict(arg)
-                ma_types[i] = arg.get(KEY_TYPE) if id else type(arg)
+                typ = arg.get(KEY_TYPE) if id else null
                 # ma_types.append(arg.get(KEY_TYPE) if id else type(arg))
-                ma_values[i] = arg.get(KEY_VALUE) if id else arg
+                value = arg.get(KEY_VALUE) if id else arg
                 # ma_values.append(arg.get(KEY_VALUE) if id else arg)
+
+            fl = split(typ, '$')
+            l = size(fl)
+            clazz = null
+            if l <= 0:
+                clazz = type(arg)
+            else:
+                package = fl[0]
+                pl = split(package, '.')
+
+                end = size(pl) - 1
+                cn = null if end < 0 else pl[end]
+                # package = package[:-len(cn)]
+
+                mn = fl[0]  # package if is_empty(fl) else package + '.' + cn
+                module = __import__(mn, fromlist=cn)
+                if l <= 1:
+                    clazz = getattr(module, cn)
+                else:
+                    j = -1
+                    for n in fl:
+                        j += 1
+                        if j <= 0:
+                            continue
+                        clazz = getattr(module, n)
+
+            if value is not None and not isinstance(value, clazz):
+                try:
+                    s = value if is_str(value) else json.dumps(value)
+                    value = json.loads(s, cls=clazz)  # FIXME 目前仅支持继承 JSONDecoder 且重写了 decode 方法的类
+                except Exception as e:
+                    print(e)
+                    value = clazz(**value)  # FIXME 目前仅支持继承 __init__ 传完整参数且顺序一致的类
+
+            ma_types[i] = clazz
+            ma_values[i] = value
 
 
 def split(s: str, seperator: str = ',') -> list:
@@ -357,7 +437,7 @@ def is_list(obj, strict: bool = false) -> bool:
 
 
 def is_dict(obj, strict: bool = false) -> bool:
-    return isinstance(obj, dict)
+    return (not strict) if obj is None else isinstance(obj, dict)
 
 
 def not_empty(obj) -> bool:

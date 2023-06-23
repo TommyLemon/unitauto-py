@@ -7,7 +7,7 @@ UnitAuto Python Library for remote dependencies with pip, etc.
 ```sh
 	pip install unitauto
 ```
-如果执行以上命令未成功，则将 pip 换成 pip3 试试：
+如果执行以上命令未成功，则将 pip 换成 pip3 试试：<br />
 if you cannot run the command successfully, try pip3:
 ```sh
 	pip3 install unitauto
@@ -20,7 +20,7 @@ if you cannot run the command successfully, try pip3:
 ```sh
 	python main.py
 ```
-如果执行以上命令未成功，则将 python 换成 python3 试试：
+如果执行以上命令未成功，则将 python 换成 python3 试试：<br />
 if you cannot run the command successfully, try python3:
 ```sh
 	python3 main.py
