@@ -423,6 +423,7 @@ def init_args(method_args, ma_types, ma_values):
             clazz = get_class(typ, value)
 
             if value is not None and not isinstance(value, clazz):
+                s = ''
                 try:
                     s = value if is_str(value) else json.dumps(value)
                     if PRIMITIVE_CLASS_MAP.__contains__(clazz.__name__):
@@ -431,7 +432,16 @@ def init_args(method_args, ma_types, ma_values):
                         value = json.loads(s, cls=clazz)  # FIXME 目前仅支持继承 JSONDecoder 且重写了 decode 方法的类
                 except Exception as e:
                     print(e)
-                    value = clazz(**value)  # FIXME 目前仅支持继承 __init__ 传完整参数且顺序一致的类
+                    if is_str(value):
+                        value = json.loads(value)
+
+                    if not isinstance(value, clazz):
+                        if is_list(value):
+                            value = clazz(*value)
+                        elif is_dict(value):
+                            value = clazz(**value)  # FIXME 目前仅支持继承 __init__ 传完整参数且顺序一致的类
+                        else:
+                            pass
 
             ma_types[i] = clazz
             ma_values[i] = value
