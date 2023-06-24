@@ -158,22 +158,45 @@ def list_method(req) -> dict:
 
         fl = split(clazz, '$')
 
+        module_list = []
         if is_all_pkg:
-            module = None
+            root_module = __import__('')
         else:
             mn = package if is_empty(fl) else package + '.' + fl[0]
-            module = __import__(mn, fromlist=['__init__'] if is_empty(fl) else fl[0])
-        mdl_list = dir(module)
+            root_module = __import__(mn, fromlist=['__init__'] if is_empty(fl) else fl[0])
 
-        l = size(mdl_list)
+            module_list.append(root_module)
+            try:
+                mdl_dict = root_module.__dict__
+                vs = mdl_dict.values()
+                for v in vs:
+                    if type(v).__name__ == 'module' and str(v).endswith("/__init__.py'>"):  # if isinstance(v, module):
+                        module_list.append(v)
+                        pass
+            except Exception as e:
+                print(e)
 
         pkg_list = []
 
-        if l > 1:  # FIXME 需要 package
+        for module_item in module_list:
             cl = []
+            pkg = module_item.__name__
+            pkg_str = str(module_item)
+            is_file = pkg_str.endswith(".py'>") and not pkg_str.endswith("/__init__.py'>")
+            if is_file:
+                ns = split(pkg, '.')  # 不存在这个函数 ind = pkg.lastindex('.')
+                pkg = pkg[:-1-len(ns[-1])]
+
+            if is_empty(pkg):
+                continue
+
+            mdl_list = dir(module_item)
+            l = size(mdl_list)
+
+            cls_list = []
             if l > 1 and not is_all_cls:
                 try:
-                    cls = module
+                    cls = module_item
                     i = -1
                     for n in fl:
                         i += 1
@@ -189,24 +212,59 @@ def list_method(req) -> dict:
                     if is_empty(pn) or pn.startswith('_') or pn.endswith('_'):
                         continue
                     try:
-                        cls = getattr(module, pn)
-                        cl.append(cls)
+                        cls = getattr(module_item, pn)
+
+                        ct = type(cls).__name__
+                        s = str(cls)
+                        if ct == 'function':
+                            mtd = parse_method(cls) if is_all_mtd or cls.__name__ == method else null
+                            if is_empty(mtd):
+                                continue
+
+                            cls_list.append({
+                                KEY_CLASS: cls.__name__,
+                                KEY_METHOD_LIST: [mtd]
+                            })
+                        if ct == 'class' or ct == 'type':
+                            cl.append(cls)
+                        elif ct == 'module':
+                            if is_file or (s.endswith(".py'>") and not s.endswith("/__init__.py'>")):
+                                cl.append(cls)
+                            # elif not (cls in module_list):
+                            #     module_list.append(cls)
                     except Exception as e:
                         print(e)
 
-            cls_list = []
             for cls in cl:
+                cn = cls.__name__
+
+                cs = str(cls).strip()  # 一样 cs = cls.__str__()
+                ind = index(cs, "'")
+                if ind >= 0:
+                    cs = cs[ind + 1:]
+
+                ind = index(cs, "'")
+                if ind >= 0:
+                    cs = cs[:ind]
+
+                if not cs.startswith(pkg + '.'):
+                    continue
+
+                cs = cs[len(pkg + '.'):]
+                if is_empty(cs):
+                    continue
+
                 if true:
                     ml = []
-                    if type(cls).__name__ == 'function':
-                        if is_all_mtd or cls.__name__ == method:
+                    if callable(cls) and type(cls).__name__ == 'function':
+                        if is_all_mtd or cn == method:
                             ml = [cls]
                         else:
                             continue
                     elif not is_all_mtd:
                         try:
                             func = getattr(cls, method)
-                            if callable(func):
+                            if callable(func) and type(func).__name__ == 'function':
                                 ml = [func]
                         except Exception as e:
                             print(e)
@@ -220,7 +278,11 @@ def list_method(req) -> dict:
                                 try:
                                     func = getattr(cls, n)
                                     if callable(func):
-                                        ml.append(func)
+                                        ft = type(func).__name__
+                                        if ft == 'function':
+                                            ml.append(func)
+                                        elif ft in ('type', 'class') and str(func) == ("<class '" + cn + "." + func.__name__ + "'>"):
+                                            cl.append(func)
                                 except Exception as e:
                                     print(e)
                         # cls.__class__.methods
@@ -231,19 +293,29 @@ def list_method(req) -> dict:
                         if not_empty(m):
                             mtd_list.append(m)
 
-                    cn = cls.__name__
                     # 不存在这个函数 ind = cn.lastindex('.')
+                    # <module 'unitauto.test.testutil' from 'unitauto/test/testutil.py'>
+                    # if cs.startswith("class <'"):
+                    #     cs = cs[len("class <'"):]
+                    # if cs.endswith("'>"):
+                    #     cs = cs[:-len("'>")]
+
+                    if is_empty(mtd_list):
+                        continue
 
                     cls_list.append({
                         # KEY_CLASS: cn if ind < 0 else cn[ind+1:],
-                        KEY_CLASS: cn[len(package + '.'):] if cn.startswith(package + '.') else cn,
+                        KEY_CLASS: cs.replace('.', '$'),
                         KEY_METHOD_LIST: mtd_list
                     })
 
-                pkg_list.append({
-                    KEY_PACKAGE: package,
-                    KEY_CLASS_LIST: cls_list
-                })
+            if is_empty(cls_list):
+                continue
+
+            pkg_list.append({
+                KEY_PACKAGE: pkg,
+                KEY_CLASS_LIST: cls_list
+            })
 
         time_detail = get_time_detail(start_time)
         return {
@@ -267,19 +339,32 @@ def list_method(req) -> dict:
 
 
 def parse_method(func) -> dict:
-    signature = inspect.signature(func)
+    signature = null if func is None else inspect.signature(func)
     if signature is None:
         return {}
 
-    rt = signature.return_annotation.__name__
+    return_annotation = signature.return_annotation
+    rt = null
+    if return_annotation is not None:
+        try:
+            rt = return_annotation.__name__
+        except Exception as e:
+            rt = str(return_annotation)
+
     if rt == '_empty':
         rt = null
 
     types = []
     for param in signature.parameters.values():
         a = null if param is None else param.annotation
-        n = null if a is None else a.__name__
-        types.append('any' if is_empty(n) or n == 'POSITIONAL_OR_KEYWORD' else n)
+        n = null
+        if a is not None:
+            try:
+                n = a.__name__
+            except Exception as e:
+                n = str(a)
+
+        types.append('any' if is_empty(n) or n in ('_empty', 'POSITIONAL_OR_KEYWORD') else n)
 
     names = [param.name for param in signature.parameters.values()]
     static = is_empty(names) or names[0] != 'self'
@@ -538,6 +623,13 @@ def size(obj) -> int:
         raise Exception('obj cannot be any one of [bool, int, float]!')
 
     return len(obj)
+
+
+def index(s: str, sub: str) -> int:
+    try:
+        return s.index(sub)
+    except Exception:
+        return -1
 
 
 def get_time_detail(start_time: int, end_time: int = 0):
