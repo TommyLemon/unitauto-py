@@ -75,16 +75,57 @@ KEY_PACKAGE_LIST = "packageList"
 KEY_CLASS_LIST = "classList"
 KEY_METHOD_LIST = "methodList"
 
-CLASS_MAP = {
+PRIMITIVE_CLASS_MAP = {
     None: any,
     'None': any,
     'any': any,
     'bool': bool,
+    'False': bool,
+    'True': bool,
     'int': int,
-    'str': str,
-    'list': list,
-    'dict': dict
+    'float': float,
+    'str': str
 }
+
+CLASS_MAP = dict(PRIMITIVE_CLASS_MAP, **{
+    'object': object,
+    'list': list,
+    'tuple': tuple,
+    'range': range,
+    'slice': slice,
+    'set': set,
+    'reversed': reversed,
+    'dict': dict,
+    'map': map,
+    'bytes': bytes,
+    'bytearray': bytearray,
+    'frozenset': frozenset,
+    'enumerate': enumerate,
+    'filter': filter,
+    'complex': complex,
+    'Exception': Exception,
+    'BaseException': BaseException,
+    'OSError': OSError,
+    'IOError': IOError,
+    'BlockingIOError': BlockingIOError,
+    'EnvironmentError': EnvironmentError,
+    'ConnectionError': ConnectionError,
+    'BrokenPipeError': BrokenPipeError,
+    'BufferError': BufferError,
+    'EOFError': EOFError,
+    'SyntaxError': SyntaxError,
+    'FileExistsError': FileExistsError,
+    'FileNotFoundError': FileNotFoundError,
+    'Warning': Warning,
+    'BytesWarning': BytesWarning,
+    'ChildProcessError': ChildProcessError,
+    'property': property,
+    'classmethod': classmethod,
+    'staticmethod': staticmethod,
+    'super': super,
+    'type': type,
+    'zip': zip,
+})
 
 
 def list_method(req) -> dict:
@@ -384,7 +425,10 @@ def init_args(method_args, ma_types, ma_values):
             if value is not None and not isinstance(value, clazz):
                 try:
                     s = value if is_str(value) else json.dumps(value)
-                    value = json.loads(s, cls=clazz)  # FIXME 目前仅支持继承 JSONDecoder 且重写了 decode 方法的类
+                    if PRIMITIVE_CLASS_MAP.__contains__(clazz.__name__):
+                        value = eval(clazz.__name__ + '(' + s + ')')
+                    else:
+                        value = json.loads(s, cls=clazz)  # FIXME 目前仅支持继承 JSONDecoder 且重写了 decode 方法的类
                 except Exception as e:
                     print(e)
                     value = clazz(**value)  # FIXME 目前仅支持继承 __init__ 传完整参数且顺序一致的类
