@@ -110,7 +110,7 @@ def test():
             }
         ]
     })
-    print('unitauto.test.testutil.add(2, 3) = \n' + to_json_str(rsp1))
+    print('unitauto.test.testutil.minus(2, 3) = \n' + to_json_str(rsp1))
 
     rsp2 = invoke_method({
         KEY_PACKAGE: 'unitauto.test',
