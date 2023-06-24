@@ -351,7 +351,7 @@ def parse_method(func) -> dict:
         except Exception as e:
             rt = str(return_annotation)
 
-    if rt == '_empty':
+    if rt in ('_empty', 'POSITIONAL_OR_KEYWORD'):
         rt = null
 
     types = []
@@ -372,10 +372,13 @@ def parse_method(func) -> dict:
     return {
         KEY_STATIC: static,
         'returnType': rt,
+        'genericReturnType': rt,
         KEY_METHOD: name,
         KEY_NAME: name,
-        'types': types if static else types[1:],
-        'names': names if static else names[1:]
+        'parameterTypeList': types if static else types[1:],
+        'genericParameterTypeList': types if static else types[1:],
+        'parameterNameList': names if static else names[1:],
+        'parameterDefaultValueList': null
     }
 
 
@@ -465,12 +468,37 @@ def invoke_method(req: any) -> dict:
         result = func(*ma_values)
         time_detail = get_time_detail(start_time)
 
+        signature = inspect.signature(func)
+        return_annotation = null if signature is None else signature.return_annotation
+        rt = null
+        if return_annotation is not None:
+            try:
+                rt = return_annotation.__name__
+                if rt in ('_empty', 'POSITIONAL_OR_KEYWORD'):
+                    rt = type(result).__name__
+            except Exception as e:
+                print(e)
+                rt = type(result).__name__  # str(return_annotation)
+
+        mas = [null] * mal
+        if mal > 0:  # bug 要及时发现 and size(ma_values) == mal:
+            i = -1
+            for v in ma_values:
+                i += 1
+                t = ma_types[i]
+                mas[i] = {
+                    KEY_TYPE: t.__name__ if t is not None else type(v),
+                    KEY_VALUE: v
+                }
+
         return {
             KEY_LANGUAGE: LANGUAGE,
             KEY_OK: true,
             KEY_CODE: CODE_SUCCESS,
             KEY_MSG: MSG_SUCCESS,
+            KEY_TYPE: rt,
             KEY_RETURN: result,
+            KEY_METHOD_ARGS: mas,
             KEY_TIME_DETAIL: time_detail
         }
     except Exception as e:
