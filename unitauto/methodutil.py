@@ -20,7 +20,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
-
+import builtins
 import json
 import time
 import inspect
@@ -126,6 +126,31 @@ CLASS_MAP = dict(PRIMITIVE_CLASS_MAP, **{
     'type': type,
     'zip': zip,
 })
+
+
+class InterfaceProxy:
+    pass
+
+
+def get_instance(self, typ: Type, value: any, class_args: list = null, reuse: bool = false):
+    return
+
+
+def on_complete(data: any, method: callable, proxy: InterfaceProxy, *extras: any):
+    pass
+
+
+def on_callback(data: any, method: callable, proxy: InterfaceProxy, *extras: any):
+    pass
+
+
+class Listener:
+    complete: callable = callable(on_complete)
+    callback: callable = callable(on_callback)
+    getinstance: callable = callable(get_instance)
+
+
+listener = Listener()
 
 
 def list_method(req) -> dict:
