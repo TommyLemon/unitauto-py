@@ -196,7 +196,7 @@ def test():
                 KEY_TYPE: 'def(a,b,c)',
                 KEY_VALUE: {
                     KEY_TYPE: 'int',
-                    KEY_RETURN: 7,
+                    KEY_RETURN: 'a - b',
                     KEY_CALLBACK: true
                 }
             }

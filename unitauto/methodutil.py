@@ -155,9 +155,9 @@ def on_callback(data: any, method: callable, proxy: InterfaceProxy, *extras: any
 
 
 class Listener:
-    complete: callable = callable(on_complete)
-    callback: callable = callable(on_callback)
-    getinstance: callable = callable(get_instance)
+    complete: callable = on_complete
+    callback: callable = on_callback
+    getinstance: callable = get_instance
 
 
 listener = Listener()
@@ -170,10 +170,10 @@ def list_method(req) -> dict:
             req = parse_json(req)
 
         mock = req.get(KEY_MOCK)
-        assert mock in [null, true, false], KEY_MOCK + ' must must in [true, false]!'
+        assert mock in [null, true, false], KEY_MOCK + ' must be in [true, false]!'
 
         query = req.get(KEY_QUERY)
-        assert query in [null, 0, 1, 2], KEY_QUERY + ' must must in [0, 1, 2]! 0-Data, 1-Total count, 2-Both above'
+        assert query in [null, 0, 1, 2], KEY_QUERY + ' must be in [0, 1, 2]! 0-Data, 1-Total count, 2-Both above'
 
         package = req.get(KEY_PACKAGE)
         assert is_str(package), KEY_PACKAGE + ' must be str!'
@@ -445,6 +445,12 @@ def wrap_result(func, method_args, ma_types, ma_values, result, start_time):
 
             t = ma_types[i]
 
+            try:
+                json.dumps(v)
+            except Exception as e:
+                print(e)
+                v = str(v)
+
             mas[i] = {
                 KEY_TYPE: t.__name__ if t is not None else type(v),
                 KEY_VALUE: v
@@ -643,10 +649,10 @@ def init_args(
                     def cb_fun(*args, **kwargs):
                         mas: list = []
                         if not_empty(args):
-                            for a in args:
+                            for arg in args:
                                 mas.append({
-                                    KEY_TYPE: type(a).__name__,
-                                    KEY_VALUE: a
+                                    KEY_TYPE: type(arg).__name__,
+                                    KEY_VALUE: arg
                                 })
 
                         if not_empty(kwargs):
@@ -660,14 +666,40 @@ def init_args(
 
                         call_list: list = raw_val.get(KEY_CALL_LIST) or []
                         call_list.append({
-                            KEY_TIME: round(time.time_ns()/MILLIS_TIME),
+                            KEY_TIME: cur_time_in_millis(),
                             KEY_METHOD_ARGS: mas
                         })
                         raw_val[KEY_CALL_LIST] = call_list
 
                         if cb:
                             callback(*args, **kwargs)
-                        return cast(rtn_val, get_class(rtn_type, rtn_val))
+
+                        rv = rtn_val
+                        if is_str(rv, true):
+                            try:
+                                fn = '__unitauto_return_' + str(i) + '__'
+                                to_eval = 'def ' + fn + '('
+                                k = 0
+                                first = true
+                                for ak in fa_keys:
+                                    if ak in kwargs:
+                                        arg = kwargs.get(ak)
+                                    else:
+                                        arg = args[k]
+                                        k += 1
+                                    to_eval += ('' if first else ', ') + ak + '=' + str(arg)
+                                    first = false
+                                    # to_eval += ak + ' = ' + str(arg) + ';'
+                                    # exec(ak + ' = ' + str(arg))
+                                to_eval += '):\n    return ' + rv
+                                exec(to_eval)
+                                # to_eval += rv
+                                nrv = eval(fn + '()')  # eval(rv)  # eval(to_eval)  # exec(to_eval)
+                                return cast(nrv, get_class(rtn_type, nrv))
+                            except Exception as e:
+                                print(e)
+
+                        return cast(rv, get_class(rtn_type, rv))
 
                     value = cb_fun  # eval('lambda ' + ', '.join(fa_keys) + ': ' + str(rtn_val))
 
@@ -838,6 +870,10 @@ def last_index(s: str, sub: str) -> int:
     if size(ws) <= 1:
         return -1
     return size(s) - size(ws[-1]) - 1
+
+
+def cur_time_in_millis() -> int:
+    return round(time.time_ns()/MILLIS_TIME)
 
 
 def get_time_detail(start_time: int, end_time: int = 0):
