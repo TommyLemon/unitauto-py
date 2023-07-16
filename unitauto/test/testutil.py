@@ -20,7 +20,10 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+import asyncio
 import json
+import threading
+import time
 from json import JSONDecoder
 from typing import Callable, Any
 
@@ -55,6 +58,29 @@ def multiply(a, b):
 
 def divide(a: float, b: float):
     return a / b
+
+
+async def async_test(a, b):
+    print('start >>> ')
+    await asyncio.sleep(3)
+    print('end <<<')
+    return a + b
+
+
+def compute_async(a, b, callback):
+    print('start >>> ')
+
+    def fun():
+        time.sleep(3)
+        print('callback >>> ')
+        ret = callback(a, b, a + b)
+        print('ret = ' + str(ret))
+
+    thd = threading.Thread(target=fun)
+    thd.start()
+
+    print('return <<<')
+    return True
 
 
 class Test(JSONDecoder):

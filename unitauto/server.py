@@ -24,7 +24,8 @@
 import json
 from unitauto import methodutil
 from unitauto.methodutil import null, true, false, to_json_str, list_method, invoke_method, KEY_PACKAGE, KEY_CLASS, \
-    KEY_CONSTRUCTOR, KEY_CLASS_ARGS, KEY_THIS, KEY_METHOD, KEY_METHOD_ARGS, KEY_TYPE, KEY_VALUE
+    KEY_CONSTRUCTOR, KEY_CLASS_ARGS, KEY_THIS, KEY_METHOD, KEY_METHOD_ARGS, KEY_TYPE, KEY_VALUE, KEY_RETURN, KEY_KEY, \
+    KEY_ASYNC, KEY_CALLBACK
 
 from http.server import HTTPServer, BaseHTTPRequestHandler
 
@@ -73,13 +74,15 @@ class Request(BaseHTTPRequestHandler):
         bs = self.rfile.read(int(self.headers[KEY_CONTENT_LENGTH]))
         req = bs.decode()  # bs.decode(CHARSET)
         # req = urllib.unquote(bs).decode(CHARSET, 'ignore')
+
+        def callback(rsp):
+            rsp_str = to_json_str(rsp)
+            self.wfile.write(rsp_str.encode())
         if path == '/method/list':
             rsp = list_method(req)
+            callback(rsp)
         else:
-            rsp = invoke_method(req)
-
-        rsp_str = to_json_str(rsp)
-        self.wfile.write(rsp_str.encode())
+            invoke_method(req, callback)
 
 
 def start(host=HOST):
@@ -93,7 +96,7 @@ def test():
         KEY_PACKAGE: 'unitauto.test',
         KEY_METHOD: 'test'
     })
-    print('unitauto.test.test() = \n' + to_json_str(rsp0))
+    print('\nunitauto.test.test() = \n' + to_json_str(rsp0))
 
     rsp1 = invoke_method({
         KEY_PACKAGE: 'unitauto.test',
@@ -110,7 +113,7 @@ def test():
             }
         ]
     })
-    print('unitauto.test.testutil.minus(2, 3) = \n' + to_json_str(rsp1))
+    print('\nunitauto.test.testutil.minus(2, 3) = \n' + to_json_str(rsp1))
 
     rsp2 = invoke_method({
         KEY_PACKAGE: 'unitauto.test',
@@ -122,7 +125,7 @@ def test():
         ],
         KEY_METHOD: 'get_id'
     })
-    print('unitauto.test.testutil.Test.get_id() = \n' + to_json_str(rsp2))
+    print('\nunitauto.test.testutil.Test.get_id() = \n' + to_json_str(rsp2))
 
     rsp3 = invoke_method({
         KEY_PACKAGE: 'unitauto.test',
@@ -135,7 +138,7 @@ def test():
         ],
         KEY_METHOD: 'get_name'
     })
-    print('unitauto.test.testutil.Test.get_name() = \n' + to_json_str(rsp3))
+    print('\nunitauto.test.testutil.Test.get_name() = \n' + to_json_str(rsp3))
 
     rsp4 = invoke_method({
         KEY_PACKAGE: 'unitauto.test',
@@ -150,7 +153,56 @@ def test():
         },
         KEY_METHOD: 'get_sex_str'
     })
-    print('unitauto.test.testutil.Test.get_sex_str() = \n' + to_json_str(rsp4))
+    print('\nunitauto.test.testutil.Test.get_sex_str() = \n' + to_json_str(rsp4))
+
+    rsp5 = invoke_method({
+        KEY_ASYNC: true,
+        KEY_PACKAGE: 'unitauto.test',
+        KEY_CLASS: 'testutil',
+        KEY_METHOD: 'async_test',
+        KEY_METHOD_ARGS: [
+            {
+                KEY_TYPE: 'int',
+                KEY_VALUE: 2
+            },
+            {
+                KEY_TYPE: 'int',
+                KEY_VALUE: 5
+            }
+        ]
+    })
+    print('\nunitauto.test.testutil.async_test(2, 5) = \n' + to_json_str(rsp5))
+
+    def callback(rsp):
+        print('unitauto.test.testutil.compute_async(2, 5, callback) = \n' + to_json_str(rsp))
+
+    rsp6 = invoke_method({
+        KEY_PACKAGE: 'unitauto.test',
+        KEY_CLASS: 'testutil',
+        KEY_METHOD: 'compute_async',
+        KEY_METHOD_ARGS: [
+            {
+                # KEY_KEY: 'a',
+                KEY_TYPE: 'int',
+                KEY_VALUE: 2
+            },
+            {
+                # KEY_KEY: 'b',
+                KEY_TYPE: 'int',
+                KEY_VALUE: 5
+            },
+            {
+                KEY_KEY: 'callback',
+                KEY_TYPE: 'def(a,b,c)',
+                KEY_VALUE: {
+                    KEY_TYPE: 'int',
+                    KEY_RETURN: 7,
+                    KEY_CALLBACK: true
+                }
+            }
+        ]
+    }, callback)
+    print('\nunitauto.test.testutil.compute_async(2, 5, callback) = \n' + to_json_str(rsp6))
 
 
 if __name__ == '__main__':
