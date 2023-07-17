@@ -24,7 +24,7 @@ import asyncio
 import json
 import threading
 import time
-from json import JSONDecoder
+from json import JSONDecoder, JSONEncoder
 from typing import Callable, Any
 
 
@@ -98,14 +98,30 @@ class Test(JSONDecoder):
         args = json.loads(s)
         return Test(**args)
 
+    def encode(self, o: Any) -> str:
+        return json.dumps({
+            'id': self.id,
+            'sex': self.sex,
+            'name': self.name
+        })
+
     def get_id(self) -> int:
         return self.id
+
+    def set_id(self, id: int):
+        self.id = id
 
     def get_sex(self) -> int:
         return self.sex
 
+    def set_sex(self, sex: int):
+        self.sex = sex
+
     def get_name(self) -> str:
         return self.name
+
+    def set_name(self, name: str):
+        self.name = name
 
     def is_male(self) -> bool:
         return self.sex is None or self.sex == 0

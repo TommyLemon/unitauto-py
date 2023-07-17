@@ -417,7 +417,7 @@ def parse_method(func) -> dict:
     }
 
 
-def wrap_result(func, method_args, ma_types, ma_values, result, start_time):
+def wrap_result(instance, func, method_args, ma_types, ma_values, result, start_time):
     time_detail = get_time_detail(start_time)
 
     signature = inspect.signature(func)
@@ -456,6 +456,39 @@ def wrap_result(func, method_args, ma_types, ma_values, result, start_time):
                 KEY_VALUE: v
             }
 
+    if is_none(instance):
+        return {
+            KEY_LANGUAGE: LANGUAGE,
+            KEY_OK: true,
+            KEY_CODE: CODE_SUCCESS,
+            KEY_MSG: MSG_SUCCESS,
+            KEY_TYPE: rt,
+            KEY_RETURN: result,
+            KEY_METHOD_ARGS: mas,
+            KEY_TIME_DETAIL: time_detail
+        }
+
+    cls = type(instance)
+    this = {
+        KEY_TYPE: cls.__name__,
+    }
+
+    try:
+        json.dumps(instance)
+        this[KEY_VALUE] = instance
+    except Exception as e:
+        print(e)
+        try:
+            this[KEY_VALUE] = json.loads(json.dumps(instance, cls=cls))
+        except Exception as e2:
+            print(e2)
+            try:
+                this[KEY_VALUE] = json.loads(instance.encode(null))
+            except Exception as e3:
+                print(e3)  # FIXME instance.__dict__ , dir(instance)
+                this[KEY_VALUE] = str(instance)
+                this[KEY_WARN] = str(e)
+
     return {
         KEY_LANGUAGE: LANGUAGE,
         KEY_OK: true,
@@ -464,6 +497,7 @@ def wrap_result(func, method_args, ma_types, ma_values, result, start_time):
         KEY_TYPE: rt,
         KEY_RETURN: result,
         KEY_METHOD_ARGS: mas,
+        KEY_THIS: this,
         KEY_TIME_DETAIL: time_detail
     }
 
@@ -531,7 +565,7 @@ def invoke_method(req: any, callback: callable = null) -> dict:
         final_result = {}
         def final_callback(*args, **kwargs):
             if not_none(callback):  # callable(callback):
-                callback(wrap_result(func, method_args, ma_types, ma_values, final_result.get(KEY_VALUE), start_time))
+                callback(wrap_result(final_result.get(KEY_THIS), func, method_args, ma_types, ma_values, final_result.get(KEY_VALUE), start_time))
 
         is_wait = init_args(method_args, ma_keys, ma_types, ma_values, m_kwargs, true, final_callback)
 
@@ -568,6 +602,7 @@ def invoke_method(req: any, callback: callable = null) -> dict:
 
             func = getattr(instance, method)
 
+        final_result[KEY_THIS] = instance
         ksl = size(m_kwargs)
         start_time = cur_time_in_millis()
 
@@ -576,7 +611,7 @@ def invoke_method(req: any, callback: callable = null) -> dict:
             else func(*ma_values[:mal-ksl], **m_kwargs)  # asyncio.run 只允许调 async 函数 is_async != false
 
         final_result[KEY_VALUE] = result
-        res = wrap_result(func, method_args, ma_types, ma_values, result, start_time)
+        res = wrap_result(instance, func, method_args, ma_types, ma_values, result, start_time)
     except Exception as e:
         res = {
             KEY_LANGUAGE: LANGUAGE,
