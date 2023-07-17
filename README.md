@@ -7,8 +7,8 @@ https://github.com/TommyLemon/unitauto-py/blob/main/unitauto/test/testutil.py#L3
 <img width="1217" alt="image" src="https://github.com/TommyLemon/unitauto-py/assets/5738175/9ce1a1d1-883b-40be-bc77-7ed7da6f9ff6">
 
 class 内成员函数：<br />
-https://github.com/TommyLemon/unitauto-py/blob/main/unitauto/test/testutil.py#L101-L102
-<img width="1278" alt="image" src="https://github.com/TommyLemon/unitauto-py/assets/5738175/83638b3c-2cdf-4ccd-9280-bd12594d3b60">
+https://github.com/TommyLemon/unitauto-py/blob/main/unitauto/test/testutil.py#L111-L112
+<img width="1279" alt="image" src="https://github.com/TommyLemon/unitauto-py/assets/5738175/2436b0d2-54f4-4c5a-be9c-c9618a258df2">
 
 async & await 协程异步函数：<br />
 https://github.com/TommyLemon/unitauto-py/blob/main/unitauto/test/testutil.py#L63-L67
