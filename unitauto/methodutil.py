@@ -164,7 +164,7 @@ listener = Listener()
 
 
 def list_method(req) -> dict:
-    start_time = time.time_ns()
+    start_time = cur_time_in_millis()
     try:
         if is_str(req):
             req = parse_json(req)
@@ -470,6 +470,7 @@ def wrap_result(func, method_args, ma_types, ma_values, result, start_time):
 
 def invoke_method(req: any, callback: callable = null) -> dict:
     start_time = time.time_ns()
+    is_wait = false
     try:
         assert is_none(callback) or callable(callback)
 
@@ -568,15 +569,16 @@ def invoke_method(req: any, callback: callable = null) -> dict:
             func = getattr(instance, method)
 
         ksl = size(m_kwargs)
-        start_time = time.time_ns()
+        start_time = cur_time_in_millis()
 
+        # TODO 自动识别 async 关键词
         result = asyncio.run(func(*ma_values[:mal-ksl], **m_kwargs)) if is_async \
             else func(*ma_values[:mal-ksl], **m_kwargs)  # asyncio.run 只允许调 async 函数 is_async != false
 
         final_result[KEY_VALUE] = result
-        return wrap_result(func, method_args, ma_types, ma_values, result, start_time)
+        res = wrap_result(func, method_args, ma_types, ma_values, result, start_time)
     except Exception as e:
-        return {
+        res = {
             KEY_LANGUAGE: LANGUAGE,
             KEY_OK: false,
             KEY_CODE: CODE_SERVER_ERROR,
@@ -585,6 +587,10 @@ def invoke_method(req: any, callback: callable = null) -> dict:
             KEY_THROW: e.__class__.__name__,
             # KEY_TRACE: e.__traceback__.__str__()
         }
+
+    if (not is_wait) and callable(callback):
+        callback(res)
+    return res
 
 
 def init_args(
@@ -878,9 +884,9 @@ def cur_time_in_millis() -> int:
 
 def get_time_detail(start_time: int, end_time: int = 0):
     if end_time is None or end_time <= 0:
-        end_time = time.time_ns()
+        end_time = cur_time_in_millis()
     duration = end_time - start_time
-    return str(round(start_time/MILLIS_TIME)) + '|' + str(round(duration/MILLIS_TIME)) + '|' + str(round(end_time/MILLIS_TIME))
+    return str(round(start_time)) + '|' + str(round(duration)) + '|' + str(round(end_time))
 
 
 def parse_json(s: str):

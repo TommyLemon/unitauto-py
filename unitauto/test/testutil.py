@@ -73,7 +73,7 @@ def compute_async(a, b, callback):
     def fun():
         time.sleep(3)
         print('callback >>> ')
-        ret = callback(a, b, a + b)
+        ret = callback(a, b)
         print('ret = ' + str(ret))
 
     thd = threading.Thread(target=fun)

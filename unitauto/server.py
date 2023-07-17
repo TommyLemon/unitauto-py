@@ -43,6 +43,16 @@ class Request(BaseHTTPRequestHandler):
     timeout = 5
     server_version = "Apache"
 
+    def send_headers(self, origin, method='POST'):
+        self.send_header(KEY_CONTENT_TYPE, CONTENT_TYPE)
+        self.send_header('Access-Control-Allow-Origin', origin)
+        self.send_header('Access-Control-Allow-Credentials', 'true')
+        self.send_header('Access-Control-Allow-Headers', 'Content-Type,content-type')
+        self.send_header('Access-Control-Allow-Methods', 'POST,GET,OPTIONS')
+        self.send_header('Access-Control-Request-Method', method)
+
+        self.end_headers()
+
     def do_OPTIONS(self):
         self.do_POST()
 
@@ -57,17 +67,9 @@ class Request(BaseHTTPRequestHandler):
 
         origin = self.headers.get('origin') or self.headers.get('Origin') or 'http://apijson.cn'
 
-        self.send_response(RESPONSE_CODE_SUCCESS)
-        self.send_header(KEY_CONTENT_TYPE, CONTENT_TYPE)
-        self.send_header('Access-Control-Allow-Origin', origin)
-        self.send_header('Access-Control-Allow-Credentials', 'true')
-        self.send_header('Access-Control-Allow-Headers', 'Content-Type,content-type')
-        self.send_header('Access-Control-Allow-Methods', 'POST,GET,OPTIONS')
-        self.send_header('Access-Control-Request-Method', method)
-
-        self.end_headers()
-
         if method == 'OPTIONS':
+            self.send_response(RESPONSE_CODE_SUCCESS)
+            self.send_headers(origin, method)
             # self.wfile.write('ok'.encode())
             return
 
@@ -75,14 +77,27 @@ class Request(BaseHTTPRequestHandler):
         req = bs.decode()  # bs.decode(CHARSET)
         # req = urllib.unquote(bs).decode(CHARSET, 'ignore')
 
-        def callback(rsp):
-            rsp_str = to_json_str(rsp)
-            self.wfile.write(rsp_str.encode())
+        done = [false]
+
+        def callback(res):
+            res_str = to_json_str(res)
+            res_byte = res_str.encode()
+            self.send_response(RESPONSE_CODE_SUCCESS)
+            self.send_headers(origin, method)
+            if done[0] or self.wfile.closed:
+                return
+            self.wfile.write(res_byte)
+            self.wfile.close()
+            done[0] = true
+
         if path == '/method/list':
             rsp = list_method(req)
             callback(rsp)
         else:
             invoke_method(req, callback)
+            while true:
+                if done[0]:
+                    break
 
 
 def start(host=HOST):
@@ -193,7 +208,7 @@ def test():
             },
             {
                 KEY_KEY: 'callback',
-                KEY_TYPE: 'def(a,b,c)',
+                KEY_TYPE: 'def(a,b)',
                 KEY_VALUE: {
                     KEY_TYPE: 'int',
                     KEY_RETURN: 'a - b',
