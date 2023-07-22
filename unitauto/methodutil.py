@@ -23,6 +23,7 @@
 import asyncio
 import builtins
 import json
+import os
 import re
 import time
 import inspect
@@ -52,7 +53,7 @@ KEY_PACKAGE = "package"
 KEY_THIS = "this"
 KEY_CLASS = "class"
 KEY_CONSTRUCTOR = "constructor"
-KEY_KEY = 'key'
+KEY_KEY = "key"
 KEY_TYPE = "type"
 KEY_AT_TYPE = "@type"
 KEY_VALUE = "value"
@@ -63,6 +64,7 @@ KEY_NAME = "name"
 KEY_METHOD = "method"
 KEY_MOCK = "mock"
 KEY_QUERY = "query"
+KEY_DEPTH = "depth"
 KEY_RETURN = "return"
 KEY_TIME_DETAIL = "time:start|duration|end"
 KEY_CLASS_ARGS = "classArgs"
@@ -163,7 +165,7 @@ class Listener:
 listener = Listener()
 
 
-def list_method(req) -> dict:
+def list_method(req, import_fun: callable = null) -> dict:
     start_time = cur_time_in_millis()
     try:
         if is_str(req):
@@ -174,6 +176,9 @@ def list_method(req) -> dict:
 
         query = req.get(KEY_QUERY)
         assert query in [null, 0, 1, 2], KEY_QUERY + ' must be in [0, 1, 2]! 0-Data, 1-Total count, 2-Both above'
+
+        depth = req.get(KEY_DEPTH)
+        assert is_int(depth, false), KEY_DEPTH + ' must be int!'
 
         package = req.get(KEY_PACKAGE)
         assert is_str(package), KEY_PACKAGE + ' must be str!'
@@ -194,20 +199,40 @@ def list_method(req) -> dict:
         fl = split(clazz, '$')
 
         module_list = []
-        if is_all_pkg:
-            root_module = __import__('')
-        else:
-            mn = package if is_empty(fl) else package + '.' + fl[0]
-            root_module = __import__(mn, fromlist=['__init__'] if is_empty(fl) else fl[0])
+        import_fun = import_fun or __import__
 
-            module_list.append(root_module)
+        depth = depth or 0
+        d = 0
+        for root, dirs, files in os.walk(package):
+            d += 1
+            if depth > 0 and d > depth:
+                break
+
+            for name in files:
+                if size(name) <= 3 or not name.endswith('.py'):
+                    continue
+
+                name = name[:-3]
+                p = os.path.join(root, name).replace('/', '.')
+                m = import_fun(p, fromlist=name)
+                if is_none(m) or module_list.__contains__(m):
+                    continue
+
+                module_list.append(m)
+
+        if is_empty(module_list):
             try:
+                mn = package if is_empty(fl) else package + '.' + fl[0]
+                root_module = import_fun(mn, fromlist=['__init__'] if is_empty(fl) else fl[0])
+
+                module_list.append(root_module)
                 mdl_dict = root_module.__dict__
                 vs = mdl_dict.values()
                 for v in vs:
                     if type(v).__name__ == 'module' and str(v).endswith("/__init__.py'>"):  # if isinstance(v, module):
                         module_list.append(v)
                         pass
+
             except Exception as e:
                 print(e)
 
