@@ -151,8 +151,9 @@ def get_instance(
     clazz, value: any = null, constructor: callable = null, class_args: list = null,
     reuse: bool = false, module=null, import_fun: callable = null
 ):
-    key = str(clazz) + ('' if is_empty(constructor) else '.' + str(constructor))\
-          + '(' + str(class_args) + ')' if reuse else null
+    reuse = reuse or false
+    key = str(clazz) + ('' if is_none(constructor) else '.' + str(constructor))\
+        + '(' + str(class_args) + ')' if reuse else null
 
     instance = INSTANCE_MAP[key] if reuse else null
 
@@ -669,9 +670,8 @@ def invoke_method(
         elif static:
             func = getattr(cls, method)
         else:
-            constructor_func = None if constructor is None else getattr(module, constructor)
-
             if instance is None:
+                constructor_func = None if is_empty(constructor) else getattr(module, constructor)
                 instance = getinstance(
                     cls, null, constructor_func, class_args, reuse=reuse, module=module, import_fun=import_fun
                 )
