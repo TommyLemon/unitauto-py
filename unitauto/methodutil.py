@@ -144,8 +144,45 @@ class InterfaceProxy:
     pass
 
 
-def get_instance(self, typ: Type, value: any, class_args: list = null, reuse: bool = false):
-    return
+INSTANCE_MAP = {}
+
+
+def get_instance(
+    clazz, value: any = null, constructor: callable = null, class_args: list = null,
+    reuse: bool = false, module=null, import_fun: callable = null
+):
+    key = str(clazz) + ('' if is_empty(constructor) else '.' + str(constructor))\
+          + '(' + str(class_args) + ')' if reuse else null
+
+    instance = INSTANCE_MAP[key] if reuse else null
+
+    if is_none(instance):
+        cal = size(class_args)
+        ca_keys = [null] * cal
+        ca_types = [null] * cal
+        ca_values = [null] * cal
+        c_kwargs = {}
+        init_args(class_args, ca_keys, ca_types, ca_values, c_kwargs, import_fun=import_fun)
+        if constructor is None:
+            instance = clazz(*ca_values, **c_kwargs)
+        else:
+            try:
+                instance = constructor(*ca_values, **c_kwargs)
+            except Exception as e:
+                print(e)
+                try:
+                    instance = clazz.constructor(*ca_values, **c_kwargs)  # @staticmethod in class
+                except Exception as e2:
+                    raise Exception(
+                        str(module) + ' does not have such a function, and ' + str(clazz)
+                        + ' does not have a @staticmethod called ' + str(constructor)
+                        + '! ' + str(e) + '; ' + str(e2)
+                    )
+
+        if reuse and not_none(instance):
+            INSTANCE_MAP[key] = instance
+
+    return instance
 
 
 def on_complete(data: any, method: callable, proxy: InterfaceProxy, *extras: any):
@@ -244,7 +281,7 @@ def list_method(req, import_fun: callable = null) -> dict:
             pkg_str = str(module_item)
             is_file = pkg_str.endswith(".py'>") and not pkg_str.endswith("/__init__.py'>")
             if is_file:
-                ns = split(pkg, '.')  # 不存在这个函数 ind = pkg.lastindex('.')
+                ns = split(pkg, '.')  # 不存在这个函数 ind = lastindex(pkg, '.')
                 pkg = pkg[:-1-len(ns[-1])]
 
             if is_empty(pkg):
@@ -282,7 +319,7 @@ def list_method(req, import_fun: callable = null) -> dict:
                                 continue
 
                             cls_list.append({
-                                KEY_CLASS: cls.__name__,
+                                # KEY_CLASS: cls.__name__,
                                 KEY_METHOD_LIST: [mtd]
                             })
                         if ct == 'class' or ct == 'type':
@@ -442,7 +479,10 @@ def parse_method(func) -> dict:
     }
 
 
-def wrap_result(instance, func, method_args, ma_types, ma_values, result, start_time):
+def wrap_result(
+    instance, func, method_args, ma_types, ma_values, result, start_time,
+    json_dumps: callable = null, json_loads: callable = null
+):
     time_detail = get_time_detail(start_time)
 
     signature = inspect.signature(func)
@@ -459,6 +499,8 @@ def wrap_result(instance, func, method_args, ma_types, ma_values, result, start_
 
     mal = size(method_args)
     mas = [null] * mal
+
+    json_dumps = json_dumps or json.dumps
     if mal > 0:  # bug 要及时发现 and size(ma_values) == mal:
         i = -1
         for v in ma_values:
@@ -471,7 +513,7 @@ def wrap_result(instance, func, method_args, ma_types, ma_values, result, start_
             t = ma_types[i]
 
             try:
-                json.dumps(v)
+                json_dumps(v)
             except Exception as e:
                 print(e)
                 v = str(v)
@@ -498,17 +540,18 @@ def wrap_result(instance, func, method_args, ma_types, ma_values, result, start_
         KEY_TYPE: cls.__name__,
     }
 
+    json_loads = json_loads or json.loads
     try:
-        json.dumps(instance)
+        json_dumps(instance)
         this[KEY_VALUE] = instance
     except Exception as e:
         print(e)
         try:
-            this[KEY_VALUE] = json.loads(json.dumps(instance, cls=cls))
+            this[KEY_VALUE] = json_loads(json_dumps(instance, cls=cls))
         except Exception as e2:
             print(e2)
             try:
-                this[KEY_VALUE] = json.loads(instance.encode(null))
+                this[KEY_VALUE] = json_loads(instance.encode(null))
             except Exception as e3:
                 print(e3)  # FIXME instance.__dict__ , dir(instance)
                 this[KEY_VALUE] = str(instance)
@@ -527,14 +570,25 @@ def wrap_result(instance, func, method_args, ma_types, ma_values, result, start_
     }
 
 
-def invoke_method(req: any, callback: callable = null) -> dict:
+def invoke_method(
+    req: any, callback: callable = null, getinstance: callable = null,
+    json_dumps: callable = null, json_loads: callable = null, import_fun: callable = null
+) -> dict:
     start_time = time.time_ns()
     is_wait = false
     try:
+        getinstance = getinstance or get_instance
+        json_dumps = json_dumps or to_json_str
+        json_loads = json_loads or parse_json
+        import_fun = import_fun or __import__
+
         assert is_none(callback) or callable(callback)
 
         if is_str(req):
-            req = parse_json(req)
+            req = json_loads(req)
+
+        reuse = req.get(KEY_REUSE)
+        assert is_bool(reuse), (KEY_REUSE + ' must be bool!')
 
         static = req.get(KEY_STATIC)
         assert is_bool(static), (KEY_STATIC + ' must be bool!')
@@ -574,7 +628,7 @@ def invoke_method(req: any, callback: callable = null) -> dict:
             this_types = [null]
             this_values = [null]
             this_kwargs = {}
-            init_args([this], this_keys, this_types, this_values, this_kwargs)
+            init_args([this], this_keys, this_types, this_values, this_kwargs, import_fun=import_fun)
             instance = this_values[0]
 
         if class_args is not None:
@@ -588,17 +642,18 @@ def invoke_method(req: any, callback: callable = null) -> dict:
         m_kwargs = {}
 
         final_result = {}
+
         def final_callback(*args, **kwargs):
             if not_none(callback):  # callable(callback):
                 callback(wrap_result(final_result.get(KEY_THIS), func, method_args, ma_types, ma_values, final_result.get(KEY_VALUE), start_time))
 
-        is_wait = init_args(method_args, ma_keys, ma_types, ma_values, m_kwargs, true, final_callback)
+        is_wait = init_args(method_args, ma_keys, ma_types, ma_values, m_kwargs, true, final_callback, import_fun=import_fun)
 
         fl = split(clazz, '$')
         l = size(fl)
 
         mn = package if l <= 0 else package + '.' + fl[0]
-        module = __import__(mn, fromlist=['__init__'] if l <= 0 else fl[0])
+        module = import_fun(mn, fromlist=['__init__'] if l <= 0 else fl[0])
 
         cls: any = null
         if l > 1:
@@ -617,13 +672,9 @@ def invoke_method(req: any, callback: callable = null) -> dict:
             constructor_func = None if constructor is None else getattr(module, constructor)
 
             if instance is None:
-                cal = size(class_args)
-                ca_keys = [null] * cal
-                ca_types = [null] * cal
-                ca_values = [null] * cal
-                c_kwargs = {}
-                init_args(class_args, ca_keys, ca_types, ca_values, c_kwargs)
-                instance = cls(*ca_values, **c_kwargs) if constructor_func is None else constructor_func(*ca_values, **c_kwargs)
+                instance = getinstance(
+                    cls, null, constructor_func, class_args, reuse=reuse, module=module, import_fun=import_fun
+                )
 
             func = getattr(instance, method)
 
@@ -636,7 +687,10 @@ def invoke_method(req: any, callback: callable = null) -> dict:
             else func(*ma_values[:mal-ksl], **m_kwargs)  # asyncio.run 只允许调 async 函数 is_async != false
 
         final_result[KEY_VALUE] = result
-        res = wrap_result(instance, func, method_args, ma_types, ma_values, result, start_time)
+        res = wrap_result(
+            instance, func, method_args, ma_types, ma_values, result, start_time,
+            json_dumps=json_dumps, json_loads=json_loads
+        )
     except Exception as e:
         res = {
             KEY_LANGUAGE: LANGUAGE,
@@ -655,7 +709,8 @@ def invoke_method(req: any, callback: callable = null) -> dict:
 
 def init_args(
     method_args: list, ma_keys: list, ma_types: list, ma_values: list,
-    ma_kwargs: dict, keep_kwargs_in_types_and_values: bool = false, callback: callable = null
+    ma_kwargs: dict, keep_kwargs_in_types_and_values: bool = false,
+    callback: callable = null, import_fun: callable = null
 ):
     is_wait = false
     mal = size(method_args)
@@ -712,6 +767,7 @@ def init_args(
                     rtn_val = value.get(KEY_RETURN)
 
                     raw_val: dict = value
+
                     def cb_fun(*args, **kwargs):
                         mas: list = []
                         if not_empty(args):
@@ -769,7 +825,7 @@ def init_args(
 
                     value = cb_fun  # eval('lambda ' + ', '.join(fa_keys) + ': ' + str(rtn_val))
 
-            clazz = type(value) if is_fun else get_class(typ, value)
+            clazz = type(value) if is_fun else get_class(typ, value, import_fun)
             value = cast(value, clazz) if not is_fun else value
 
             ma_keys[i] = key
@@ -793,19 +849,22 @@ def init_args(
     return is_wait
 
 
-def cast(value, clazz):
+def cast(value, clazz, json_dumps: callable = null, json_loads: callable = null):
     if value is not None and not isinstance(value, clazz):
+        json_dumps = json_dumps or json.dumps
+        json_loads = json_loads or json.loads
+
         s = ''
         try:
-            s = value if is_str(value) else json.dumps(value)
+            s = value if is_str(value) else json_dumps(value)
             if PRIMITIVE_CLASS_MAP.__contains__(clazz.__name__):
                 value = eval(clazz.__name__ + '(' + s + ')')
             else:
-                value = json.loads(s, cls=clazz)  # FIXME 目前仅支持继承 JSONDecoder 且重写了 decode 方法的类
+                value = json_loads(s, cls=clazz)  # FIXME 目前仅支持继承 JSONDecoder 且重写了 decode 方法的类
         except Exception as e:
             print(e)
             if is_str(value):
-                value = json.loads(value)
+                value = json_loads(value)
 
             if not isinstance(value, clazz):
                 if is_list(value):
@@ -818,10 +877,12 @@ def cast(value, clazz):
     return value
 
 
-def get_class(typ: str, value: any = None) -> Type:
+def get_class(typ: str, value: any = None, import_fun: callable = null) -> Type:
     fl = split(typ, '$')
     if is_empty(fl):
         return type(value)
+
+    import_fun = import_fun or __import__
 
     path = typ
     clazz = CLASS_MAP.get(path)
@@ -836,7 +897,7 @@ def get_class(typ: str, value: any = None) -> Type:
 
         l = size(fl)
         mn = fl[0]  # pkg if is_empty(fl) else pkg + '.' + cn
-        module = __import__(mn, fromlist=cn)
+        module = import_fun(mn, fromlist=cn)
         if l <= 1:
             clazz = getattr(module, cn)
         else:

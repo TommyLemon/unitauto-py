@@ -94,6 +94,10 @@ class Test(JSONDecoder):
         self.sex = sex
         self.name = name
 
+    @staticmethod
+    def get_instance(id: int = 0, sex: int = 0, name: str = '') -> 'Test':
+        return Test(id=id, sex=sex, name=name)
+
     def decode(self, s: str, _w: Callable[..., Any] = ...) -> Any:
         args = json.loads(s)
         return Test(**args)

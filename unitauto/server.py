@@ -79,16 +79,24 @@ class Request(BaseHTTPRequestHandler):
 
         done = [false]
 
+        wfile = self.wfile
+
         def callback(res):
             res_str = to_json_str(res)
             res_byte = res_str.encode()
             self.send_response(RESPONSE_CODE_SUCCESS)
             self.send_headers(origin, method)
-            if done[0] or self.wfile.closed:
+            if done[0] or wfile is None or wfile.closed:
                 return
-            self.wfile.write(res_byte)
-            self.wfile.close()
+
+            wfile.write(res_byte)
             done[0] = true
+            try:
+                wfile.close()
+            except BaseException as e:
+                # print(e)
+                pass
+            # cause error 'unresolved reference'  wfile = null
 
         if path == '/method/list':
             rsp = list_method(req)
