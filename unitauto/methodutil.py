@@ -69,6 +69,7 @@ KEY_RETURN = "return"
 KEY_TIME_DETAIL = "time:start|duration|end"
 KEY_CLASS_ARGS = "classArgs"
 KEY_METHOD_ARGS = "methodArgs"
+KEY_ARGS = "args"
 KEY_CALLBACK = "callback"
 KEY_GLOBAL = "global"
 
@@ -610,8 +611,13 @@ def invoke_method(
         class_args = req.get(KEY_CLASS_ARGS)
         assert is_list(class_args), (KEY_CLASS_ARGS + ' must be list!')
 
+        args = req.get(KEY_ARGS)
+        assert is_list(args), (KEY_ARGS + ' must be list!')
+
         method_args = req.get(KEY_METHOD_ARGS)
         assert is_list(method_args), (KEY_METHOD_ARGS + ' must be list!')
+
+        assert args is None or method_args is None, (KEY_ARGS + ', ' + KEY_METHOD_ARGS + ' cannot both be not null!')
 
         constructor = req.get(KEY_CONSTRUCTOR)
         assert is_str(constructor), (KEY_CONSTRUCTOR + ' must be str!')
@@ -636,6 +642,7 @@ def invoke_method(
             assert not static, KEY_CLASS_ARGS + ' cannot appear together with ' + KEY_STATIC + '!'
             assert this is None, KEY_CLASS_ARGS + ' cannot appear together with ' + KEY_THIS + '!'
 
+        method_args = method_args or args
         mal = size(method_args)
         ma_keys = [null] * mal
         ma_types = [null] * mal
