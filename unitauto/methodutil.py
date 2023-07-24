@@ -242,10 +242,15 @@ def list_method(req, import_fun: callable = null) -> dict:
 
         depth = depth or 0
         d = 0
-        for root, dirs, files in os.walk(package):
+        for root, dirs, files in os.walk(package.replace('.', '/')):
             d += 1
             if depth > 0 and d > depth:
                 break
+
+            # for name in dirs:
+            #     m = import_fun(('' if is_empty(root) else root.replace('/', '.') + '.') + name.replace('/', '.'), fromlist=['__init__'])
+            #     if not_none(m) and not module_list.__contains__(m):
+            #         module_list.append(m)
 
             for name in files:
                 if size(name) <= 3 or not name.endswith('.py'):
@@ -254,7 +259,7 @@ def list_method(req, import_fun: callable = null) -> dict:
                 name = name[:-3]
                 p = os.path.join(root, name).replace('/', '.')
                 m = import_fun(p, fromlist=name)
-                if is_none(m) or module_list.__contains__(m):
+                if is_none(m) or module_list.__contains__(m) or m in module_list:
                     continue
 
                 module_list.append(m)
@@ -282,9 +287,18 @@ def list_method(req, import_fun: callable = null) -> dict:
             pkg = module_item.__name__
             pkg_str = str(module_item)
             is_file = pkg_str.endswith(".py'>") and not pkg_str.endswith("/__init__.py'>")
+            file_name = null
+
             if is_file:
-                ns = split(pkg, '.')  # 不存在这个函数 ind = lastindex(pkg, '.')
+                ns = split(pkg, '.')  # 不存在这个函数 ind = last_index(pkg, '.')
+                file_name = ns[-1]
                 pkg = pkg[:-1-len(ns[-1])]
+                # module_item = import_fun(pkg)
+                # if module_item not in cl and not cl.__contains__(module_item):
+                cl.append(module_item)
+
+            if pkg.endswith('.__init__'):
+                pkg = pkg[:-len('.__init__')]
 
             if is_empty(pkg):
                 continue
@@ -293,6 +307,7 @@ def list_method(req, import_fun: callable = null) -> dict:
             l = size(mdl_list)
 
             cls_list = []
+
             if l > 1 and not is_all_cls:
                 try:
                     cls = module_item
@@ -312,23 +327,31 @@ def list_method(req, import_fun: callable = null) -> dict:
                         continue
                     try:
                         cls = getattr(module_item, pn)
+                        cm = cls.__module__ if hasattr(cls, '__module__') else null
+                        if is_empty(cm) or not cm.startswith(pkg):
+                            continue
 
                         ct = type(cls).__name__
                         s = str(cls)
                         if ct == 'function':
+                            if is_file:
+                                continue
+
                             mtd = parse_method(cls) if is_all_mtd or cls.__name__ == method else null
                             if is_empty(mtd):
                                 continue
 
                             cls_list.append({
-                                # KEY_CLASS: cls.__name__,
+                                KEY_CLASS: file_name,
                                 KEY_METHOD_LIST: [mtd]
                             })
                         if ct == 'class' or ct == 'type':
-                            cl.append(cls)
+                            if cls not in cl and not cl.__contains__(cls):
+                                cl.append(cls)
                         elif ct == 'module':
                             if is_file or (s.endswith(".py'>") and not s.endswith("/__init__.py'>")):
-                                cl.append(cls)
+                                if cls not in cl and not cl.__contains__(cls):
+                                    cl.append(cls)
                             # elif not (cls in module_list):
                             #     module_list.append(cls)
                     except Exception as e:
@@ -380,8 +403,8 @@ def list_method(req, import_fun: callable = null) -> dict:
                                         ft = type(func).__name__
                                         if ft == 'function':
                                             ml.append(func)
-                                        elif ft in ('type', 'class') and str(func) == ("<class '" + cn + "." + func.__name__ + "'>"):
-                                            cl.append(func)
+                                        # elif ft in ('type', 'class') and str(func) == ("<class '" + cn + "." + func.__name__ + "'>"):
+                                        #     cl.append(func)
                                 except Exception as e:
                                     print(e)
                         # cls.__class__.methods
