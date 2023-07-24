@@ -27,6 +27,7 @@ import os
 import re
 import time
 import inspect
+import types
 import typing
 from typing import Type
 
@@ -713,9 +714,12 @@ def invoke_method(
         ksl = size(m_kwargs)
         start_time = cur_time_in_millis()
 
-        # TODO 自动识别 async 关键词
-        result = asyncio.run(func(*ma_values[:mal-ksl], **m_kwargs)) if is_async \
-            else func(*ma_values[:mal-ksl], **m_kwargs)  # asyncio.run 只允许调 async 函数 is_async != false
+        result = func(*ma_values[:mal - ksl], **m_kwargs)  # asyncio.run 只允许调 async 函数 is_async != false
+
+        # 自动识别 async 关键词
+        is_async = is_async or (is_async is None and is_instance(result, (types.CoroutineType, types.AsyncGeneratorType)))
+        if is_async:
+            result = asyncio.run(result)
 
         final_result[KEY_VALUE] = result
         res = wrap_result(
