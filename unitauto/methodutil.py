@@ -27,6 +27,7 @@ import os
 import re
 import time
 import inspect
+import typing
 from typing import Type
 
 null = None
@@ -273,7 +274,7 @@ def list_method(req, import_fun: callable = null) -> dict:
                 mdl_dict = root_module.__dict__
                 vs = mdl_dict.values()
                 for v in vs:
-                    if type(v).__name__ == 'module' and str(v).endswith("/__init__.py'>"):  # if isinstance(v, module):
+                    if type(v).__name__ == 'module' and str(v).endswith("/__init__.py'>"):  # if is_instance(v, module):
                         module_list.append(v)
                         pass
 
@@ -880,7 +881,7 @@ def init_args(
 
 
 def cast(value, clazz, json_dumps: callable = null, json_loads: callable = null):
-    if value is not None and not isinstance(value, clazz):
+    if value is not None and not is_instance(value, clazz):
         json_dumps = json_dumps or json.dumps
         json_loads = json_loads or json.loads
 
@@ -896,7 +897,7 @@ def cast(value, clazz, json_dumps: callable = null, json_loads: callable = null)
             if is_str(value):
                 value = json_loads(value)
 
-            if not isinstance(value, clazz):
+            if not is_instance(value, clazz):
                 if is_list(value):
                     value = clazz(*value)
                 elif is_dict(value):
@@ -956,27 +957,27 @@ def is_contain(s: str, seperator: str = ',') -> bool:
 
 
 def is_bool(obj, strict: bool = false) -> bool:
-    return (not strict) if obj is None else isinstance(obj, bool)
+    return (not strict) if obj is None else is_instance(obj, bool)
 
 
 def is_int(obj, strict: bool = false) -> bool:
-    return (not strict) if obj is None else isinstance(obj, int)
+    return (not strict) if obj is None else is_instance(obj, int)
 
 
 def is_float(obj, strict: bool = false) -> bool:
-    return (not strict) if obj is None else isinstance(obj, float)
+    return (not strict) if obj is None else is_instance(obj, float)
 
 
 def is_str(obj, strict: bool = false) -> bool:
-    return (not strict) if obj is None else isinstance(obj, str)
+    return (not strict) if obj is None else is_instance(obj, str)
 
 
 def is_list(obj, strict: bool = false) -> bool:
-    return (not strict) if obj is None else isinstance(obj, list)
+    return (not strict) if obj is None else is_instance(obj, list)
 
 
 def is_dict(obj, strict: bool = false) -> bool:
-    return (not strict) if obj is None else isinstance(obj, dict)
+    return (not strict) if obj is None else is_instance(obj, dict)
 
 
 def not_none(obj):
@@ -1000,9 +1001,16 @@ def is_empty(obj) -> bool:
     return size(obj) <= 0
 
 
+def is_instance(obj, typ):
+    if typ in [null, any, typing.Any]:  # fix isinstance() arg 2 must be a type or tuple of types
+        return true
+    return isinstance(obj, typ)
+
+
 def is_name(s: str) -> bool:
-    m = null if is_empty(s) else PATTERN_NUMBER.match(s[:1])
-    return is_none(m) and not_none(PATTERN_NAME.match(s))
+    if is_empty(s) or PATTERN_NUMBER.match(s[:1]):
+        return false
+    return not_none(PATTERN_NAME.match(s))
 
 
 def size(obj) -> int:
