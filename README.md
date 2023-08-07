@@ -54,3 +54,30 @@ if you cannot run the command successfully, try python3:
 #### 3. Test by following the main repo
 
 https://github.com/TommyLemon/UnitAuto
+
+<br />
+
+### 4. 关于作者
+### 4. Author
+[https://github.com/TommyLemon](https://github.com/TommyLemon)<br />
+<img width="1279" alt="image" src="https://user-images.githubusercontent.com/5738175/199979403-ace8b574-cd64-4582-8c19-b51571945214.png">
+
+如果有什么问题或建议可以 [去 APIAuto 提 issue](https://github.com/TommyLemon/APIAuto/issues)，交流技术，分享经验。<br >
+如果你解决了某些 bug，或者新增了一些功能，欢迎 [提 PR 贡献代码](https://github.com/Tencent/APIJSON/blob/master/CONTRIBUTING.md)，感激不尽。
+<br />
+If you have any questions or suggestions, you can [create an issue](https://github.com/TommyLemon/APIAuto/issues). <br >
+If you can added a feature or fixed a bug, please [create a pull request](https://github.com/TommyLemon/unitauto-py/pulls), thank you~
+
+<br />
+
+### 5. 相关项目
+### 5. Link
+创作不易、坚持更难，右上角点 ⭐ Star 支持下吧，谢谢 ^_^
+
+[UnitAuto](https://github.com/TommyLemon/UnitAuto) 机器学习零代码单元测试平台，零代码、全方位、自动化 测试 方法/函数 的正确性、可用性和性能
+<br />
+[unitauto-go-demo](https://github.com/TommyLemon/unitauto-go-demo) UnitAuto Go Demo，提供用来做单元测试的业务函数
+<br />
+[unitauto-py](https://github.com/TommyLemon/unitauto-py) UnitAuto Python 库，可通过 pip 仓库等远程依赖
+
+
