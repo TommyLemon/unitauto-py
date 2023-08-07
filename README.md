@@ -76,8 +76,4 @@ If you can added a feature or fixed a bug, please [create a pull request](https:
 
 [UnitAuto](https://github.com/TommyLemon/UnitAuto) 机器学习零代码单元测试平台，零代码、全方位、自动化 测试 方法/函数 的正确性、可用性和性能
 <br />
-[unitauto-go-demo](https://github.com/TommyLemon/unitauto-go-demo) UnitAuto Go Demo，提供用来做单元测试的业务函数
-<br />
-[unitauto-py](https://github.com/TommyLemon/unitauto-py) UnitAuto Python 库，可通过 pip 仓库等远程依赖
-
-
+[unitauto-go](https://github.com/TommyLemon/unitauto-go) UnitAuto Go 库，可通过 GitHub 仓库等远程依赖
