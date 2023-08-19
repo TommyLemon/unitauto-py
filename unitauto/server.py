@@ -22,12 +22,17 @@
 # SOFTWARE.
 
 import json
+import coverage
+
 from unitauto import methodutil
 from unitauto.methodutil import null, true, false, to_json_str, list_method, invoke_method, KEY_PACKAGE, KEY_CLASS, \
     KEY_CONSTRUCTOR, KEY_CLASS_ARGS, KEY_THIS, KEY_METHOD, KEY_METHOD_ARGS, KEY_TYPE, KEY_VALUE, KEY_RETURN, KEY_KEY, \
     KEY_ASYNC, KEY_CALLBACK
 
-from http.server import HTTPServer, BaseHTTPRequestHandler
+import http.server
+from http.server import HTTPServer, BaseHTTPRequestHandler, SimpleHTTPRequestHandler
+from functools import partial
+import os
 
 
 CHARSET = 'uft-8'
@@ -39,12 +44,16 @@ KEY_CONTENT_LENGTH = 'Content-Length'
 CONTENT_TYPE = 'application/json; charset=UTF-8'
 
 
-class Request(BaseHTTPRequestHandler):
+COVERAGE = coverage.coverage()
+
+
+class Request(SimpleHTTPRequestHandler):
     timeout = 5
     server_version = "Apache"
 
-    def send_headers(self, origin, method='POST'):
-        self.send_header(KEY_CONTENT_TYPE, CONTENT_TYPE)
+    def send_headers(self, origin, method='POST', content_type: str = CONTENT_TYPE):
+        if methodutil.not_empty(content_type):
+            self.send_header(KEY_CONTENT_TYPE, content_type)
         self.send_header('Access-Control-Allow-Origin', origin)
         self.send_header('Access-Control-Allow-Credentials', 'true')
         self.send_header('Access-Control-Allow-Headers', 'Content-Type,content-type')
@@ -52,6 +61,13 @@ class Request(BaseHTTPRequestHandler):
         self.send_header('Access-Control-Request-Method', method)
 
         self.end_headers()
+
+    def do_GET(self):
+        if self.path.startswith('/coverage/'):
+            self.do_POST()
+            return
+
+        super().do_GET()
 
     def do_OPTIONS(self):
         self.do_POST()
@@ -62,8 +78,8 @@ class Request(BaseHTTPRequestHandler):
         host = 'http://' + client_address[0] + ':' + str(client_address[1])
         path = self.path
         print(method + ' ' + host + path)
-        if path not in ['/method/list', '/method/invoke']:
-            raise Exception('only support /method/list, /method/invoke')
+        # if path not in ['/method/list', '/method/invoke']:
+        #     raise Exception('only support /method/list, /method/invoke')
 
         origin = self.headers.get('origin') or self.headers.get('Origin') or 'http://apijson.cn'
 
@@ -73,13 +89,74 @@ class Request(BaseHTTPRequestHandler):
             # self.wfile.write('ok'.encode())
             return
 
-        bs = self.rfile.read(int(self.headers[KEY_CONTENT_LENGTH]))
-        req = bs.decode()  # bs.decode(CHARSET)
+        cl = self.headers.get(KEY_CONTENT_LENGTH)
+        bs = self.rfile.read(0 if methodutil.is_empty(cl) else int(cl))
+        req = null if bs is None else bs.decode()  # bs.decode(CHARSET)
         # req = urllib.unquote(bs).decode(CHARSET, 'ignore')
 
-        done = [false]
-
         wfile = self.wfile
+
+        if path.startswith('/coverage/'):
+            res = {
+                methodutil.KEY_CODE: methodutil.CODE_SUCCESS,
+                methodutil.KEY_MSG: methodutil.MSG_SUCCESS
+            }
+            res_str = to_json_str(res)
+
+            if path == '/coverage/start':
+                try:
+                    COVERAGE.stop()
+                except Exception as e:
+                    print(e)
+
+                COVERAGE.start()
+            elif path == '/coverage/stop':
+                COVERAGE.stop()
+            elif path == '/coverage/save':
+                COVERAGE.save()
+            else:
+                if path == '/coverage/report':
+                    res['coverage'] = COVERAGE.report()
+                    try:
+                        COVERAGE.json_report()
+                        f = open('coverage.json', 'r')
+                        t = f.read()
+                        try:
+                            res['json'] = json.loads(t)
+                        except Exception as e:
+                            print(e)
+                            res['json'] = t
+                    except Exception as e:
+                        print(e)
+
+                    try:
+                        COVERAGE.html_report()
+                        f = open('htmlcov/index.html', 'r')
+                        res['html'] = f.read()
+                        # res['html'] = '../htmlcov/index.html'  # f.read()
+                    except Exception as e:
+                        print(e)
+
+                    res_str = to_json_str(res)
+                elif path == '/coverage/index.html':
+                    self.send_response(301)
+                    self.send_header('Location', host + '/unitauto-py/htmlcov/index.html')
+                else:
+                    COVERAGE.html_report()
+
+                    ind = methodutil.index(path, '/')
+                    f = open('../htmlcov/' + path[ind+1:], 'r')
+                    res_str = f.read()
+                    self.send_headers(origin, method, content_type='text/html')
+                    wfile.write(res_str.encode())
+                    return
+
+            self.send_response(RESPONSE_CODE_SUCCESS)
+            self.send_headers(origin, method)
+            wfile.write(res_str.encode())
+            return
+
+        done = [false]
 
         def callback(res):
             res_str = to_json_str(res)
@@ -101,7 +178,7 @@ class Request(BaseHTTPRequestHandler):
         if path == '/method/list':
             rsp = list_method(req)
             callback(rsp)
-        else:
+        elif path == '/method/invoke':
             invoke_method(req, callback)
             while true:
                 if done[0]:
@@ -109,9 +186,18 @@ class Request(BaseHTTPRequestHandler):
 
 
 def start(host=HOST):
-    server = HTTPServer(host, Request)
-    print("Starting server, listen at: %s:%s" % host)
-    server.serve_forever()
+    wk_dir = os.getcwd()
+    Request.extensions_map = {
+        k: v + ';charset=UTF-8' for k, v in Request.extensions_map.items()
+    }
+
+    # server = HTTPServer(host, Request)
+    # # print("Starting server, listen at: %s:%s" % host)
+    # server.serve_forever()
+    # server.server_bind()
+    # print('http://localhost:8083/')
+
+    http.server.test(Request, port=host[1])  # HandlerClass=partial(SimpleHTTPRequestHandler, directory=wk_dir + '/htmlcov'), port=8083, bind='')
 
 
 def test():
