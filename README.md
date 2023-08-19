@@ -19,6 +19,10 @@ https://github.com/TommyLemon/unitauto-py/blob/main/unitauto/test/testutil.py#L7
 <img width="1281" alt="image" src="https://github.com/TommyLemon/unitauto-py/assets/5738175/101c3736-93bc-409c-8f9f-b189e13cb06b">
 <img width="1496" alt="image" src="https://github.com/TommyLemon/unitauto-py/assets/5738175/3e7ed198-29bb-4094-ab40-e32c7650cf8b">
 
+覆盖率统计：<br />
+<img width="1495" alt="image" src="https://github.com/TommyLemon/unitauto-py/assets/5738175/13e7ae6c-1384-4fdc-a7b0-79693895ec6a">
+<img width="1495" alt="image" src="https://github.com/TommyLemon/unitauto-py/assets/5738175/054b46c8-e32c-4e45-ad6c-173bc63d5a9c">
+
 <br />
 
 ## 使用
