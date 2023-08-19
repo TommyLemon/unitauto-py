@@ -117,6 +117,7 @@ class Request(SimpleHTTPRequestHandler):
             else:
                 if path == '/coverage/report':
                     res['coverage'] = COVERAGE.report()
+                    res['url'] = '/htmlcov/index.html'
                     try:
                         COVERAGE.json_report()
                         f = open('coverage.json', 'r')
