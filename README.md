@@ -2,24 +2,29 @@
 UnitAuto Python 库，可通过 pip 仓库等远程依赖。<br />
 UnitAuto Python Library for remote dependencies with pip, etc.
 
+Sync pure function: <br />
 同步纯函数：<br />
 https://github.com/TommyLemon/unitauto-py/blob/main/unitauto/test/testutil.py#L39-L40
 <img width="1217" alt="image" src="https://github.com/TommyLemon/unitauto-py/assets/5738175/9ce1a1d1-883b-40be-bc77-7ed7da6f9ff6">
 
+class member function: <br />
 class 内成员函数：<br />
 https://github.com/TommyLemon/unitauto-py/blob/main/unitauto/test/testutil.py#L111-L112
 <img width="1279" alt="image" src="https://github.com/TommyLemon/unitauto-py/assets/5738175/2436b0d2-54f4-4c5a-be9c-c9618a258df2">
 
+async & await function: <br />
 async & await 协程异步函数：<br />
 https://github.com/TommyLemon/unitauto-py/blob/main/unitauto/test/testutil.py#L63-L67
 <img width="1280" alt="image" src="https://github.com/TommyLemon/unitauto-py/assets/5738175/100a6605-2c37-4c51-92ea-a6ae080c0ab4">
 
+thread callback function: <br />
 异步回调函数：<br />
 https://github.com/TommyLemon/unitauto-py/blob/main/unitauto/test/testutil.py#L70-L83
 <img width="1281" alt="image" src="https://github.com/TommyLemon/unitauto-py/assets/5738175/101c3736-93bc-409c-8f9f-b189e13cb06b">
 <img width="1496" alt="image" src="https://github.com/TommyLemon/unitauto-py/assets/5738175/3e7ed198-29bb-4094-ab40-e32c7650cf8b">
 
-覆盖率统计：<br />
+Code coverage: <br />
+代码覆盖率统计：<br />
 <img width="1495" alt="image" src="https://github.com/TommyLemon/unitauto-py/assets/5738175/13e7ae6c-1384-4fdc-a7b0-79693895ec6a">
 <img width="1495" alt="image" src="https://github.com/TommyLemon/unitauto-py/assets/5738175/054b46c8-e32c-4e45-ad6c-173bc63d5a9c">
 
