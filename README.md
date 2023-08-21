@@ -94,7 +94,8 @@ If you can added a feature or fixed a bug, please [create a pull request](https:
 
 ### 5. 其它项目
 ### 5. Link
-创作不易、坚持更难，右上角点 ⭐ Star 支持下吧，谢谢 ^_^
+创作不易、坚持更难，右上角点量 ⭐ Star 支持下吧，谢谢 ^_^  <br />
+Please ⭐ Star the repos that you like ^_^  <br />
 
 [UnitAuto](https://github.com/TommyLemon/UnitAuto) 机器学习零代码单元测试平台，零代码、全方位、自动化 测试 方法/函数 的正确性、可用性和性能
 
