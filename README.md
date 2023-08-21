@@ -41,8 +41,21 @@ if you cannot run the command successfully, try pip3:
 
 <br />
 
-#### 2. 运行 main.py
-#### 2. Run main.py
+#### 2. 启动单元测试服务
+#### 2. Start unit testing server
+
+添加以下代码到你的项目的 main.py <br />
+Add the code below in main.py of your project <br />
+https://github.com/TommyLemon/unitauto-py/blob/main/main.py#L3-L13
+```py
+import unitauto
+
+if __name__ == '__main__':
+    unitauto.server.start()
+```
+
+用 PyCharm 等 IDE 运行按钮来运行 main.py 或执行以下命令 <br />
+Run main.py with PyCharm or execute command below <br />
 ```sh
 	python main.py
 ```
