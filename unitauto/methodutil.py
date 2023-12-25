@@ -20,6 +20,7 @@
 # LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 # OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 # SOFTWARE.
+
 import asyncio
 import builtins
 import json
@@ -49,7 +50,7 @@ LANGUAGE = 'Python'
 KEY_LANGUAGE = "language"
 KEY_REUSE = "reuse"
 KEY_UI = "ui"
-KEY_TIME = "time"
+KEY_TIME = "@time"
 KEY_TIMEOUT = "timeout"
 KEY_PACKAGE = "package"
 KEY_THIS = "this"
