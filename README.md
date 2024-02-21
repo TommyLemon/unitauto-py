@@ -82,7 +82,7 @@ https://github.com/TommyLemon/UnitAuto
 ### 4. 关于作者
 ### 4. Author
 [https://github.com/TommyLemon](https://github.com/TommyLemon)<br />
-<img width="1280" src="https://github.com/TommyLemon/unitauto-py/assets/5738175/e8ed6021-5f70-46bf-8d61-08c0d4d4dd9e">
+<img width="1280" src="https://github.com/TommyLemon/UIGO/assets/5738175/ec77df98-ff9b-43aa-b2f1-2fce2549d276">
 
 如果有什么问题或建议可以 [去 APIAuto 提 issue](https://github.com/TommyLemon/APIAuto/issues)，交流技术，分享经验。<br >
 如果你解决了某些 bug，或者新增了一些功能，欢迎 [提 PR 贡献代码](https://github.com/Tencent/APIJSON/blob/master/CONTRIBUTING.md)，感激不尽。
