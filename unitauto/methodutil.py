@@ -50,6 +50,8 @@ LANGUAGE = 'Python'
 KEY_LANGUAGE = "language"
 KEY_REUSE = "reuse"
 KEY_UI = "ui"
+KEY_BEFORE = "before"  # pre ?
+KEY_AFTER = "after"  # post ?
 KEY_TIME = "@time"
 KEY_TIMEOUT = "timeout"
 KEY_PACKAGE = "package"
@@ -668,6 +670,51 @@ def wrap_result(
     }
 
 
+def exec_other(ctx: dict, node, is_after=false, callback: callable = null, getinstance: callable = null,
+    json_dumps: callable = null, json_loads: callable = null, import_fun: callable = null):
+    if not_empty(node):
+        rets = []
+
+        nodes = node if is_list(node) else [node]
+        l = size(nodes)
+        for i in range(l):
+            nd = nodes[i]
+            if is_str(nd):
+                lines = split(nd.strip(), '\n')
+                ll = size(lines)
+
+                for j in range(ll):
+                    line = lines[j]
+                    if j < ll - 1:
+                        exec(line)
+                        continue
+
+                    v = eval(line)
+                    rets.append(v)
+                    ctx[str(i)] = v
+
+            elif is_dict(nd):
+                for k, v in nd:
+                    try:
+                        v2 = eval(v) if is_str(v) and not_empty(v) else v
+                    except Exception as e:
+                        print(e)
+                        try:
+                            v2 = invoke_method(v, callback, getinstance, json_dumps, json_loads, import_fun)
+                        except Exception as e2:
+                            # raise e
+                            print(e)
+                            v2 = v
+
+                    nd[k] = v2
+                    rets.append(v2)
+                    ctx[k] = v2
+            else:
+                assert false, ((KEY_AFTER if is_after else KEY_BEFORE) + ':[value], all values must be str or dict!')
+
+        ctx['@return'] = rets
+
+
 def invoke_method(
     req: any, callback: callable = null, getinstance: callable = null,
     json_dumps: callable = null, json_loads: callable = null, import_fun: callable = null
@@ -684,6 +731,12 @@ def invoke_method(
 
         if is_str(req):
             req = json_loads(req)
+
+        before = req.get(KEY_BEFORE)
+        assert is_str(before) or is_dict(before) or is_list(before), (KEY_BEFORE + ' must be str, dict or list!')
+
+        after = req.get(KEY_AFTER)
+        assert is_str(after) or is_dict(after) or is_list(after), (KEY_AFTER + ' must be str, dict or list!')
 
         reuse = req.get(KEY_REUSE)
         assert is_bool(reuse), (KEY_REUSE + ' must be bool!')
@@ -720,6 +773,9 @@ def invoke_method(
 
         this = req.get(KEY_THIS)
         assert is_dict(this), (KEY_THIS + ' must be dict!')
+
+        ctx = {}
+        exec_other(ctx, before, false, callback, getinstance, json_dumps, json_loads, import_fun)
 
         instance = None
         if this is not None:
@@ -808,6 +864,12 @@ def invoke_method(
             instance, func, method_args, ma_types, ma_values, result, start_time,
             json_dumps=json_dumps, json_loads=json_loads, import_fun=import_fun
         )
+
+        try:
+            exec_other(ctx, after, true, callback, getinstance, json_dumps, json_loads, import_fun)
+        except Exception as e:
+            print(e)
+
     except Exception as e:
         res = {
             KEY_LANGUAGE: LANGUAGE,
@@ -821,6 +883,7 @@ def invoke_method(
 
     if (not is_wait) and callable(callback):
         callback(res)
+
     return res
 
 
