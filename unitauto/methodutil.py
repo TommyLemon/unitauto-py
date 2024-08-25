@@ -52,8 +52,8 @@ KEY_LANGUAGE = "language"
 KEY_CONTEXT = "context"
 KEY_REUSE = "reuse"
 KEY_UI = "ui"
-KEY_BEFORE = "before"  # pre ?
-KEY_AFTER = "after"  # post ?
+KEY_PRE = "pre"  # pre ?
+KEY_POST = "post"  # post ?
 KEY_TIME = "@time"
 KEY_TIMEOUT = "timeout"
 KEY_PACKAGE = "package"
@@ -648,10 +648,10 @@ def wrap_result(
                 this[KEY_VALUE] = str(instance)
                 this[KEY_WARN] = str(e)
 
-    bef = ctx.get('@'+KEY_BEFORE) or []
-    aft = ctx.get('@'+KEY_AFTER) or []
-    del ctx['@'+KEY_BEFORE]
-    del ctx['@'+KEY_BEFORE]
+    bef = ctx.get('@'+KEY_PRE) or []
+    aft = ctx.get('@'+KEY_POST) or []
+    del ctx['@'+KEY_PRE]
+    del ctx['@'+KEY_PRE]
 
     if result is None and is_empty(rt):
         return {
@@ -662,8 +662,8 @@ def wrap_result(
             KEY_METHOD_ARGS: mas,
             KEY_THIS: this,
             KEY_TIME_DETAIL: time_detail,
-            KEY_BEFORE: bef,
-            KEY_AFTER: aft,
+            KEY_PRE: bef,
+            KEY_POST: aft,
             KEY_CONTEXT: ctx
         }
 
@@ -677,19 +677,19 @@ def wrap_result(
         KEY_METHOD_ARGS: mas,
         KEY_THIS: this,
         KEY_TIME_DETAIL: time_detail,
-        KEY_BEFORE: bef,
-        KEY_AFTER: aft,
+        KEY_PRE: bef,
+        KEY_POST: aft,
         KEY_CONTEXT: ctx
     }
 
 
 def exec_other(
-    ctx: dict, node, is_after=false, other_callback: callable = null, constructor: str = null, class_args: list = null,
+    ctx: dict, node, is_post=false, other_callback: callable = null, constructor: str = null, class_args: list = null,
     is_async: bool = null, method_args: list = null, callback: callable = null, getinstance: callable = null,
     json_dumps: callable = null, json_loads: callable = null, import_fun: callable = null
 ):
 
-    node_key = '@' + (KEY_AFTER if is_after else KEY_BEFORE)
+    node_key = '@' + (KEY_POST if is_post else KEY_PRE)
     node_vals = ctx.get(node_key) or []
 
     nodes = []
@@ -766,7 +766,7 @@ def exec_other(
 
                     ret = nd
             else:
-                assert false, ((KEY_AFTER if is_after else KEY_BEFORE) + ':[value], all values must be str or dict!')
+                assert false, ((KEY_POST if is_post else KEY_PRE) + ':[value], all values must be str or dict!')
 
             val = {
                 KEY_VALUE: nd
@@ -808,11 +808,11 @@ def invoke_method(
         if is_str(req):
             req = json_loads(req)
 
-        before = req.get(KEY_BEFORE)
-        assert is_str(before) or is_dict(before) or is_list(before), (KEY_BEFORE + ' must be str, dict or list!')
+        pre = req.get(KEY_PRE)
+        assert is_str(pre) or is_dict(pre) or is_list(pre), (KEY_PRE + ' must be str, dict or list!')
 
-        after = req.get(KEY_AFTER)
-        assert is_str(after) or is_dict(after) or is_list(after), (KEY_AFTER + ' must be str, dict or list!')
+        post = req.get(KEY_POST)
+        assert is_str(post) or is_dict(post) or is_list(post), (KEY_POST + ' must be str, dict or list!')
 
         reuse = req.get(KEY_REUSE)
         assert is_bool(reuse), (KEY_REUSE + ' must be bool!')
@@ -953,7 +953,7 @@ def invoke_method(
 
             try:
                 exec_other(
-                    ctx, after, true, other_callback=null, constructor=constructor, class_args=class_args,
+                    ctx, post, true, other_callback=null, constructor=constructor, class_args=class_args,
                     is_async=is_async, method_args=method_args,
                     getinstance=getinstance, json_dumps=json_dumps, json_loads=json_loads, import_fun=import_fun
                 )
@@ -961,7 +961,7 @@ def invoke_method(
                 print(e)
 
         exec_other(
-            ctx, before, false, other_callback=other_callback, constructor=constructor, class_args=class_args,
+            ctx, pre, false, other_callback=other_callback, constructor=constructor, class_args=class_args,
             is_async=is_async, method_args=method_args,
             getinstance=getinstance, json_dumps=json_dumps, json_loads=json_loads, import_fun=import_fun
         )
