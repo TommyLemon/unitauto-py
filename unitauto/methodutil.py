@@ -64,6 +64,7 @@ KEY_KEY = "key"
 KEY_TYPE = "type"
 KEY_AT_TYPE = "@type"
 KEY_VALUE = "value"
+# KEY_REF = "ref"
 KEY_WARN = "warn"
 KEY_STATIC = "static"
 KEY_ASYNC = "async"
@@ -167,7 +168,7 @@ INSTANCE_MAP = {}
 
 def get_instance(
     clazz, value: any = null, constructor: callable = null, class_args: list = null,
-    reuse: bool = false, module=null, import_fun: callable = null
+    reuse: bool = false, module=null, import_fun: callable = null, ctx: dict = null
 ):
     reuse = reuse or false
     key = str(clazz) + ('' if is_none(constructor) else '.' + str(constructor))\
@@ -181,7 +182,7 @@ def get_instance(
         ca_types = [null] * cal
         ca_values = [null] * cal
         c_kwargs = {}
-        init_args(class_args, ca_keys, ca_types, ca_values, c_kwargs, import_fun=import_fun)
+        init_args(class_args, ca_keys, ca_types, ca_values, c_kwargs, import_fun=import_fun, ctx=ctx)
         if constructor is None:
             instance = clazz(*ca_values, **c_kwargs)
         else:
@@ -856,7 +857,7 @@ def invoke_method(
                 this_types = [null]
                 this_values = [null]
                 this_kwargs = {}
-                init_args([this], this_keys, this_types, this_values, this_kwargs, import_fun=import_fun)
+                init_args([this], this_keys, this_types, this_values, this_kwargs, import_fun=import_fun, ctx=ctx)
                 instance = this_values[0]
 
             if class_args is not None:
@@ -878,7 +879,7 @@ def invoke_method(
                         final_result.get(KEY_VALUE), start_time, import_fun=import_fun
                     ))
 
-            is_wait[0] = init_args(method_args, ma_keys, ma_types, ma_values, m_kwargs, true, final_callback, import_fun=import_fun)
+            is_wait[0] = init_args(method_args, ma_keys, ma_types, ma_values, m_kwargs, true, final_callback, import_fun=import_fun, ctx=ctx)
 
             fl = split(clazz, '$')
             l = size(fl)
@@ -911,7 +912,7 @@ def invoke_method(
                 if instance is None:
                     constructor_func = None if is_empty(constructor) else getattr(module, constructor)
                     instance = getinstance(
-                        cls, null, constructor_func, class_args, reuse=reuse, module=module, import_fun=import_fun
+                        cls, null, constructor_func, class_args, reuse=reuse, module=module, import_fun=import_fun, ctx=ctx
                     )
 
                 func = getattr(instance, method)
@@ -978,7 +979,7 @@ def invoke_method(
 def init_args(
     method_args: list, ma_keys: list, ma_types: list, ma_values: list,
     ma_kwargs: dict, keep_kwargs_in_types_and_values: bool = false,
-    callback: callable = null, import_fun: callable = null
+    callback: callable = null, import_fun: callable = null, ctx: dict = null
 ):
     is_wait = false
     mal = size(method_args)
@@ -1085,16 +1086,16 @@ def init_args(
                                 exec(to_eval)
                                 # to_eval += rv
                                 nrv = eval(fn + '()')  # eval(rv)  # eval(to_eval)  # exec(to_eval)
-                                return cast(nrv, get_class(rtn_type, nrv))
+                                return cast(nrv, get_class(rtn_type, nrv), ctx=ctx)
                             except Exception as e:
                                 print(e)
 
-                        return cast(rv, get_class(rtn_type, rv))
+                        return cast(rv, get_class(rtn_type, rv), ctx=ctx)
 
                     value = cb_fun  # eval('lambda ' + ', '.join(fa_keys) + ': ' + str(rtn_val))
 
             clazz = type(value) if is_fun else get_class(typ, value, import_fun)
-            value = cast(value, clazz) if not is_fun else value
+            value = cast(value, clazz, ctx=ctx) if not is_fun else value
 
             ma_keys[i] = key
             if is_none(key):
@@ -1117,7 +1118,7 @@ def init_args(
     return is_wait
 
 
-def cast(value, clazz, json_dumps: callable = null, json_loads: callable = null):
+def cast(value, clazz, json_dumps: callable = null, json_loads: callable = null, ctx: dict = null):
     if value is not None and not is_instance(value, clazz):
         json_dumps = json_dumps or json.dumps
         json_loads = json_loads or json.loads
@@ -1138,7 +1139,34 @@ def cast(value, clazz, json_dumps: callable = null, json_loads: callable = null)
                 if is_list(value):
                     value = clazz(*value)
                 elif is_dict(value):
-                    value = clazz(**value)  # FIXME 目前仅支持继承 __init__ 传完整参数且顺序一致的类
+                    to_del_keys = []
+
+                    val = {}
+                    for k in value:
+                        v = value[k]
+                        if k[-1:] != '@':
+                            val[k] = v
+                            continue
+
+                        assert is_str(v), k + ': value 中 value 不合法，所有 key@: value 的 value 必须是 str！'
+
+                        ks = split(v, '/')
+                        l = size(ks)
+                        p = ctx
+                        for i in range(l):
+                            if i <= 0 or i >= l - 1:
+                                continue
+                            k2 = ks[i]
+                            p = v[k2]
+
+                        val[k[:-1]] = p[ks[-1]]
+                        # value[k[:-1]] = p[ks[-1]]
+                        # to_del_keys.append(k)
+
+                    # for k in to_del_keys:
+                    #     del value[k]
+
+                    value = clazz(**val)  # FIXME 目前仅支持继承 __init__ 传完整参数且顺序一致的类
                 else:
                     pass
 
