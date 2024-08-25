@@ -604,70 +604,14 @@ def wrap_result(
                 KEY_VALUE: v
             }
 
-    if is_none(instance):
-        if result is None and is_empty(rt):
-            return {
-                KEY_LANGUAGE: LANGUAGE,
-                KEY_OK: true,
-                KEY_CODE: CODE_SUCCESS,
-                KEY_MSG: MSG_SUCCESS,
-                KEY_METHOD_ARGS: mas,
-                KEY_TIME_DETAIL: time_detail
-            }
-
-        return {
-            KEY_LANGUAGE: LANGUAGE,
-            KEY_OK: true,
-            KEY_CODE: CODE_SUCCESS,
-            KEY_MSG: MSG_SUCCESS,
-            KEY_TYPE: rt,
-            KEY_RETURN: result,
-            KEY_METHOD_ARGS: mas,
-            KEY_TIME_DETAIL: time_detail
-        }
-
-    cls = type(instance)
-    this = {
-        KEY_TYPE: cls.__name__,
-    }
-
-    json_loads = json_loads or json.loads
-    try:
-        json_dumps(instance)
-        this[KEY_VALUE] = instance
-    except Exception as e:
-        print(e)
-        try:
-            this[KEY_VALUE] = json_loads(json_dumps(instance, cls=cls))
-        except Exception as e2:
-            print(e2)
-            try:
-                this[KEY_VALUE] = json_loads(instance.encode(null))
-            except Exception as e3:
-                print(e3)  # FIXME instance.__dict__ , dir(instance)
-                this[KEY_VALUE] = str(instance)
-                this[KEY_WARN] = str(e)
-
-    bef = ctx.get('@'+KEY_PRE) or []
-    aft = ctx.get('@'+KEY_POST) or []
-    del ctx['@'+KEY_PRE]
-    del ctx['@'+KEY_PRE]
-
-    if result is None and is_empty(rt):
-        return {
-            KEY_LANGUAGE: LANGUAGE,
-            KEY_OK: true,
-            KEY_CODE: CODE_SUCCESS,
-            KEY_MSG: MSG_SUCCESS,
-            KEY_METHOD_ARGS: mas,
-            KEY_THIS: this,
-            KEY_TIME_DETAIL: time_detail,
-            KEY_PRE: bef,
-            KEY_POST: aft,
-            KEY_CONTEXT: ctx
-        }
-
-    return {
+    res = {
+        KEY_LANGUAGE: LANGUAGE,
+        KEY_OK: true,
+        KEY_CODE: CODE_SUCCESS,
+        KEY_MSG: MSG_SUCCESS,
+        KEY_METHOD_ARGS: mas,
+        KEY_TIME_DETAIL: time_detail,
+    } if result is None and is_empty(rt) else {
         KEY_LANGUAGE: LANGUAGE,
         KEY_OK: true,
         KEY_CODE: CODE_SUCCESS,
@@ -675,12 +619,54 @@ def wrap_result(
         KEY_TYPE: rt,
         KEY_RETURN: result,
         KEY_METHOD_ARGS: mas,
-        KEY_THIS: this,
         KEY_TIME_DETAIL: time_detail,
-        KEY_PRE: bef,
-        KEY_POST: aft,
-        KEY_CONTEXT: ctx
     }
+
+    if not_none(instance):
+        cls = type(instance)
+        this = {
+            KEY_TYPE: cls.__name__,
+        }
+
+        json_loads = json_loads or json.loads
+        try:
+            json_dumps(instance)
+            this[KEY_VALUE] = instance
+        except Exception as e:
+            print(e)
+            try:
+                this[KEY_VALUE] = json_loads(json_dumps(instance, cls=cls))
+            except Exception as e2:
+                print(e2)
+                try:
+                    this[KEY_VALUE] = json_loads(instance.encode(null))
+                except Exception as e3:
+                    print(e3)  # FIXME instance.__dict__ , dir(instance)
+                    this[KEY_VALUE] = str(instance)
+                    this[KEY_WARN] = str(e)
+
+        res[KEY_THIS] = this
+
+    # key_pre = '@'+KEY_PRE
+    # key_post = '@'+KEY_POST
+    #
+    # pre = ctx.get(key_pre)
+    # post = ctx.get(key_post)
+    # if key_pre in ctx:
+    #     del ctx[key_pre]
+    # if key_post in ctx:
+    #     del ctx[key_post]
+    #
+    # if not_empty(pre):
+    #     res[KEY_PRE] = pre
+    #
+    # if not_empty(post):
+    #     res[KEY_POST] = post
+
+    if not_empty(ctx):
+        res[KEY_CONTEXT] = ctx
+
+    return res
 
 
 def exec_other(
@@ -783,7 +769,10 @@ def exec_other(
             ctx[node_key] = node_vals
 
     if not_none(other_callback):
-        other_callback(constructor, class_args, is_async, method_args)
+        other_callback(
+            constructor=constructor, class_args=class_args, is_async=is_async, method_args=method_args,
+            getinstance=getinstance, json_dumps=json_dumps, json_loads=json_loads, import_fun=import_fun
+        )
 
     return node_vals
 
