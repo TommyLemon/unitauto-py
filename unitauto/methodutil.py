@@ -571,7 +571,7 @@ def parse_method(func, import_fun: callable = null) -> dict:
 
 def wrap_result(
     ctx: dict, instance, func, method_args, ma_types, ma_values, result, start_time,
-    json_dumps: callable = null, json_loads: callable = null, import_fun: callable = null
+    json_dumps: callable = null, json_loads: callable = null, import_fun: callable = null, is_root: bool = false
 ):
     time_detail = get_time_detail(start_time)
 
@@ -664,7 +664,7 @@ def wrap_result(
     # if not_empty(post):
     #     res[KEY_POST] = post
 
-    if not_empty(ctx):
+    if is_root and not_empty(ctx):
         res[KEY_CONTEXT] = ctx
 
     return res
@@ -720,7 +720,10 @@ def exec_other(
 
             elif is_dict(nd):
                 try:
-                    v2 = invoke_method(nd, callback, getinstance, json_dumps, json_loads, import_fun)
+                    def cb(*args, **kwargs):
+                        return
+
+                    v2 = invoke_method(nd, cb, getinstance, json_dumps, json_loads, import_fun, ctx=ctx)
                     ret = v2
                 except Exception as e:
                     if debug:
@@ -780,11 +783,12 @@ def exec_other(
 
 def invoke_method(
     req: any, callback: callable = null, getinstance: callable = null,
-    json_dumps: callable = null, json_loads: callable = null, import_fun: callable = null
+    json_dumps: callable = null, json_loads: callable = null, import_fun: callable = null, ctx: dict = null
 ) -> dict:
     start_time = time.time_ns()
     is_wait = [false]
-    ctx = {}
+    is_root = is_none(ctx)
+    ctx = ctx or {}
     res = [{}]
 
     try:
@@ -873,11 +877,15 @@ def invoke_method(
             final_result = {}
 
             def final_callback(*args, **kwargs):
+                ret = wrap_result(ctx,
+                    final_result.get(KEY_THIS), func, method_args, ma_types, ma_values,
+                    final_result.get(KEY_VALUE), start_time, import_fun=import_fun, is_root=is_root
+                )
+
                 if not_none(callback):  # callable(callback):
-                    callback(wrap_result(ctx,
-                        final_result.get(KEY_THIS), func, method_args, ma_types, ma_values,
-                        final_result.get(KEY_VALUE), start_time, import_fun=import_fun
-                    ))
+                    callback(ret)
+
+                return ret
 
             is_wait[0] = init_args(method_args, ma_keys, ma_types, ma_values, m_kwargs, true, final_callback, import_fun=import_fun, ctx=ctx)
 
@@ -938,7 +946,7 @@ def invoke_method(
             final_result[KEY_VALUE] = result
             res[0] = wrap_result(ctx,
                 instance, func, method_args, ma_types, ma_values, result, start_time,
-                json_dumps=json_dumps, json_loads=json_loads, import_fun=import_fun
+                json_dumps=json_dumps, json_loads=json_loads, import_fun=import_fun, is_root=is_root
             )
 
             try:
@@ -967,7 +975,7 @@ def invoke_method(
             # KEY_TRACE: e.__traceback__.__str__()
         }
 
-    if not_empty(ctx):
+    if is_root and not_empty(ctx):
         res[0][KEY_CONTEXT] = ctx
 
     if (not is_wait[0]) and callable(callback):
@@ -988,6 +996,7 @@ def init_args(
         for arg in method_args:
             i += 1
             value = null
+            ref = null
             is_fun = false
 
             if is_str(arg) and (arg.__contains__(':') or arg.__contains__('=')):
@@ -998,12 +1007,18 @@ def init_args(
                 # ma_types.append(arg[:ind] if ind >= 0 else 'str')
                 value = arg[eq_ind+1:] if eq_ind >= 0 else (arg[ind+1:] if ind >= 0 else arg)
                 # ma_values.append(arg[ind + 1:] if ind >= 0 else arg)
+
+                if typ[-1:] == '@':
+                    typ = typ[:-1]
+                    value = get_by_path(ctx, value)
             else:
                 id = is_dict(arg)
                 key = arg.get(KEY_KEY) if id else null
                 typ = arg.get(KEY_TYPE) if id else null
                 # ma_types.append(arg.get(KEY_TYPE) if id else type(arg))
-                value = arg.get(KEY_VALUE) if id else arg
+                ref = arg.get(KEY_VALUE+'@') if id else arg
+                value = get_by_path(ctx, ref) if not_empty(ref) else null
+                value = (arg.get(KEY_VALUE) if is_none(value) else value) if id else arg
                 # ma_values.append(arg.get(KEY_VALUE) if id else arg)
 
                 start = index(typ, '(')
@@ -1118,6 +1133,28 @@ def init_args(
     return is_wait
 
 
+def get_by_path(ctx, path):
+    if is_empty(ctx):
+        return null
+    if is_empty(path):
+        return ctx
+
+    ks = split(path, '/')
+    l = size(ks)
+    p = ctx
+    for i in range(l):
+        if i <= 0 or i >= l - 1:
+            continue
+
+        k2 = ks[i]
+        p = p.get(k2)
+        if is_none(p):
+            return null
+
+    lk = ks[-1]
+    return p.get(lk)
+
+
 def cast(value, clazz, json_dumps: callable = null, json_loads: callable = null, ctx: dict = null):
     if value is not None and not is_instance(value, clazz):
         json_dumps = json_dumps or json.dumps
@@ -1149,18 +1186,9 @@ def cast(value, clazz, json_dumps: callable = null, json_loads: callable = null,
                             continue
 
                         assert is_str(v), k + ': value 中 value 不合法，所有 key@: value 的 value 必须是 str！'
-
-                        ks = split(v, '/')
-                        l = size(ks)
-                        p = ctx
-                        for i in range(l):
-                            if i <= 0 or i >= l - 1:
-                                continue
-                            k2 = ks[i]
-                            p = v[k2]
-
-                        val[k[:-1]] = p[ks[-1]]
-                        # value[k[:-1]] = p[ks[-1]]
+                        v2 = get_by_path(ctx, v)
+                        val[k[:-1]] = v2
+                        # value[k[:-1]] = v2
                         # to_del_keys.append(k)
 
                     # for k in to_del_keys:
