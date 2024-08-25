@@ -49,6 +49,7 @@ MSG_SUCCESS = 'success'
 LANGUAGE = 'Python'
 
 KEY_LANGUAGE = "language"
+KEY_CONTEXT = "context"
 KEY_REUSE = "reuse"
 KEY_UI = "ui"
 KEY_BEFORE = "before"  # pre ?
@@ -568,7 +569,7 @@ def parse_method(func, import_fun: callable = null) -> dict:
 
 
 def wrap_result(
-    instance, func, method_args, ma_types, ma_values, result, start_time,
+    ctx: dict, instance, func, method_args, ma_types, ma_values, result, start_time,
     json_dumps: callable = null, json_loads: callable = null, import_fun: callable = null
 ):
     time_detail = get_time_detail(start_time)
@@ -599,7 +600,7 @@ def wrap_result(
                 v = str(v)
 
             mas[i] = {
-                KEY_TYPE: t.__name__ if t is not None else type(v),
+                KEY_TYPE: t.__name__ if t is not None else type(v).__name__,
                 KEY_VALUE: v
             }
 
@@ -647,6 +648,11 @@ def wrap_result(
                 this[KEY_VALUE] = str(instance)
                 this[KEY_WARN] = str(e)
 
+    bef = ctx.get('@'+KEY_BEFORE) or []
+    aft = ctx.get('@'+KEY_AFTER) or []
+    del ctx['@'+KEY_BEFORE]
+    del ctx['@'+KEY_BEFORE]
+
     if result is None and is_empty(rt):
         return {
             KEY_LANGUAGE: LANGUAGE,
@@ -655,7 +661,10 @@ def wrap_result(
             KEY_MSG: MSG_SUCCESS,
             KEY_METHOD_ARGS: mas,
             KEY_THIS: this,
-            KEY_TIME_DETAIL: time_detail
+            KEY_TIME_DETAIL: time_detail,
+            KEY_BEFORE: bef,
+            KEY_AFTER: aft,
+            KEY_CONTEXT: ctx
         }
 
     return {
@@ -667,22 +676,34 @@ def wrap_result(
         KEY_RETURN: result,
         KEY_METHOD_ARGS: mas,
         KEY_THIS: this,
-        KEY_TIME_DETAIL: time_detail
+        KEY_TIME_DETAIL: time_detail,
+        KEY_BEFORE: bef,
+        KEY_AFTER: aft,
+        KEY_CONTEXT: ctx
     }
 
 
-def exec_other(ctx: dict, node, is_after=false, callback: callable = null, getinstance: callable = null,
-    json_dumps: callable = null, json_loads: callable = null, import_fun: callable = null):
-    if not_empty(node):
-        rets = []
-        errs = {}
+def exec_other(
+    ctx: dict, node, is_after=false, other_callback: callable = null, constructor: str = null, class_args: list = null,
+    is_async: bool = null, method_args: list = null, callback: callable = null, getinstance: callable = null,
+    json_dumps: callable = null, json_loads: callable = null, import_fun: callable = null
+):
 
+    node_key = '@' + (KEY_AFTER if is_after else KEY_BEFORE)
+    node_vals = ctx.get(node_key) or []
+
+    nodes = []
+    if not_empty(node):
         nodes = node if is_list(node) else [node]
         l = size(nodes)
         for i in range(l):
             nd = nodes[i]
+
+            ret = null
+            errs = {}
+
             if is_str(nd):
-                lines = split(nd.strip(), '\n')
+                nd = lines = split(nd.strip(), '\n')
                 ll = size(lines)
 
                 for j in range(ll):
@@ -694,14 +715,17 @@ def exec_other(ctx: dict, node, is_after=false, callback: callable = null, getin
                     v = line
                     try:
                         v = eval(line)
-                        rets.append(v)
-                        ctx[str(i)] = v
+                        ret = v
+                        ctx[node_key + '-' + str(i) + '-' + str(j)] = v
                     except Exception as e:
                         if debug:
                             raise e
 
                         print(e)
-                        errs[str(i)] = e
+                        errs[str(i) + '-' + str(j)] = {
+                            KEY_TYPE: type(e).__name__,
+                            KEY_VALUE: str(e)
+                        }
                         exec(line)
 
                     if is_name(line):
@@ -710,13 +734,16 @@ def exec_other(ctx: dict, node, is_after=false, callback: callable = null, getin
             elif is_dict(nd):
                 try:
                     v2 = invoke_method(nd, callback, getinstance, json_dumps, json_loads, import_fun)
-                    rets.append(v2)
+                    ret = v2
                 except Exception as e:
                     if debug:
                         raise e
 
                     print(e)
-                    errs[str(i)] = e
+                    errs[str(i)] = {
+                        KEY_TYPE: type(e).__name__,
+                        KEY_VALUE: str(e)
+                    }
 
                     for k in nd:
                         v = nd[k]
@@ -727,18 +754,38 @@ def exec_other(ctx: dict, node, is_after=false, callback: callable = null, getin
                                 raise e2
 
                             print(e2)
-                            errs[k] = e2
+                            errs[str(i) + '-' + k] = {
+                                KEY_TYPE: type(e2).__name__,
+                                KEY_VALUE: str(e2)
+                            }
+
                             v2 = v
 
                         nd[k] = v2
                         ctx[k] = v2
 
-                    rets.append(nd)
+                    ret = nd
             else:
                 assert false, ((KEY_AFTER if is_after else KEY_BEFORE) + ':[value], all values must be str or dict!')
 
-        ctx['@return'] = rets
-        ctx['@throw'] = errs
+            val = {
+                KEY_VALUE: nd
+            }
+
+            if not_none(ret):
+                val[KEY_TYPE] = type(ret).__name__
+                val[KEY_RETURN] = ret
+            if not_empty(errs):
+                val[KEY_THROW] = errs
+
+            node_vals.append(val)
+
+            ctx[node_key] = node_vals
+
+    if not_none(other_callback):
+        other_callback(constructor, class_args, is_async, method_args)
+
+    return node_vals
 
 
 def invoke_method(
@@ -746,8 +793,9 @@ def invoke_method(
     json_dumps: callable = null, json_loads: callable = null, import_fun: callable = null
 ) -> dict:
     start_time = time.time_ns()
-    is_wait = false
+    is_wait = [false]
     ctx = {}
+    res = [{}]
 
     try:
         getinstance = getinstance or get_instance
@@ -802,110 +850,124 @@ def invoke_method(
         this = req.get(KEY_THIS)
         assert is_dict(this), (KEY_THIS + ' must be dict!')
 
-        exec_other(ctx, before, false, callback, getinstance, json_dumps, json_loads, import_fun)
+        method_args = method_args or args or []
 
-        instance = None
-        if this is not None:
-            assert not static, KEY_STATIC + ' cannot appear together with ' + KEY_THIS + '!'
-            assert class_args is None, KEY_THIS + ' cannot appear together with ' + KEY_CLASS_ARGS + '!'
-            assert constructor is None, KEY_THIS + ' cannot appear together with ' + KEY_CONSTRUCTOR + '!'
+        def other_callback(
+                constructor: str = null, class_args: list = null, is_async: bool = null, method_args: list = null,
+                getinstance: callable = null, *args, **kwargs
+        ):
 
-            this_keys = [null]
-            this_types = [null]
-            this_values = [null]
-            this_kwargs = {}
-            init_args([this], this_keys, this_types, this_values, this_kwargs, import_fun=import_fun)
-            instance = this_values[0]
+            instance = None
+            if this is not None:
+                assert not static, KEY_STATIC + ' cannot appear together with ' + KEY_THIS + '!'
+                assert class_args is None, KEY_THIS + ' cannot appear together with ' + KEY_CLASS_ARGS + '!'
+                assert constructor is None, KEY_THIS + ' cannot appear together with ' + KEY_CONSTRUCTOR + '!'
 
-        if class_args is not None:
-            assert not static, KEY_CLASS_ARGS + ' cannot appear together with ' + KEY_STATIC + '!'
-            assert this is None, KEY_CLASS_ARGS + ' cannot appear together with ' + KEY_THIS + '!'
+                this_keys = [null]
+                this_types = [null]
+                this_values = [null]
+                this_kwargs = {}
+                init_args([this], this_keys, this_types, this_values, this_kwargs, import_fun=import_fun)
+                instance = this_values[0]
 
-        method_args = method_args or args
-        mal = size(method_args)
-        ma_keys = [null] * mal
-        ma_types = [null] * mal
-        ma_values = [null] * mal
-        m_kwargs = {}
+            if class_args is not None:
+                assert not static, KEY_CLASS_ARGS + ' cannot appear together with ' + KEY_STATIC + '!'
+                assert this is None, KEY_CLASS_ARGS + ' cannot appear together with ' + KEY_THIS + '!'
 
-        final_result = {}
+            mal = size(method_args)
+            ma_keys = [null] * mal
+            ma_types = [null] * mal
+            ma_values = [null] * mal
+            m_kwargs = {}
 
-        def final_callback(*args, **kwargs):
-            if not_none(callback):  # callable(callback):
-                callback(wrap_result(
-                    final_result.get(KEY_THIS), func, method_args, ma_types, ma_values,
-                    final_result.get(KEY_VALUE), start_time, import_fun=import_fun
-                ))
+            final_result = {}
 
-        is_wait = init_args(method_args, ma_keys, ma_types, ma_values, m_kwargs, true, final_callback, import_fun=import_fun)
+            def final_callback(*args, **kwargs):
+                if not_none(callback):  # callable(callback):
+                    callback(wrap_result(ctx,
+                        final_result.get(KEY_THIS), func, method_args, ma_types, ma_values,
+                        final_result.get(KEY_VALUE), start_time, import_fun=import_fun
+                    ))
 
-        fl = split(clazz, '$')
-        l = size(fl)
+            is_wait[0] = init_args(method_args, ma_keys, ma_types, ma_values, m_kwargs, true, final_callback, import_fun=import_fun)
 
-        mn = package if l <= 0 else package + '.' + fl[0]
-        module = import_fun(mn, fromlist=['__init__'] if l <= 0 else fl[0])
+            fl = split(clazz, '$')
+            l = size(fl)
 
-        cls: any = null
-        if l > 1:
-            i = -1
-            m = module
-            for n in fl:
-                i += 1
-                if i <= 0:
-                    continue
-                # if i > 1:
-                #     n = 'Test$InnerTest'  # 'Test.InnerTest'
-                #     # 'Test' object has no attribute 'InnerTest'  #     m = m()
-                m = getattr(m, n)  # FIXME Test.InnerTest raise Exception: type object 'Test' has no attribute 'InnerTest'
+            mn = package if l <= 0 else package + '.' + fl[0]
+            module = import_fun(mn, fromlist=['__init__'] if l <= 0 else fl[0])
 
-            cls = m
-            # 'testutil' object has no attribute 'Test.InnerTest'  cls = getattr(module, '.'.join(fl[1:]))
-            # 'testutil' object has no attribute 'Test.InnerTest'  cls = getattr(module, '$'.join(fl[1:]))
+            cls: any = null
+            if l > 1:
+                i = -1
+                m = module
+                for n in fl:
+                    i += 1
+                    if i <= 0:
+                        continue
+                    # if i > 1:
+                    #     n = 'Test$InnerTest'  # 'Test.InnerTest'
+                    #     # 'Test' object has no attribute 'InnerTest'  #     m = m()
+                    m = getattr(m, n)  # FIXME Test.InnerTest raise Exception: type object 'Test' has no attribute 'InnerTest'
 
-        if cls is None:
-            func = getattr(module, method)
-        elif static:
-            func = getattr(cls, method)
-        else:
-            if instance is None:
-                constructor_func = None if is_empty(constructor) else getattr(module, constructor)
-                instance = getinstance(
-                    cls, null, constructor_func, class_args, reuse=reuse, module=module, import_fun=import_fun
+                cls = m
+                # 'testutil' object has no attribute 'Test.InnerTest'  cls = getattr(module, '.'.join(fl[1:]))
+                # 'testutil' object has no attribute 'Test.InnerTest'  cls = getattr(module, '$'.join(fl[1:]))
+
+            if cls is None:
+                func = getattr(module, method)
+            elif static:
+                func = getattr(cls, method)
+            else:
+                if instance is None:
+                    constructor_func = None if is_empty(constructor) else getattr(module, constructor)
+                    instance = getinstance(
+                        cls, null, constructor_func, class_args, reuse=reuse, module=module, import_fun=import_fun
+                    )
+
+                func = getattr(instance, method)
+
+            if not_empty(ctx):
+                for k in ctx:
+                    if is_name(k):
+                        v = ctx[k]
+                        line = k + ' = ' + json_dumps(v)
+                        exec(line)
+
+            final_result[KEY_THIS] = instance
+            ksl = size(m_kwargs)
+            start_time = cur_time_in_millis()
+
+            result = func(*ma_values[:mal - ksl], **m_kwargs)  # asyncio.run 只允许调 async 函数 is_async != false
+
+            # 自动识别 async 关键词
+            is_async = is_async or (is_async is None and is_instance(result, (types.CoroutineType, types.AsyncGeneratorType)))
+            if is_async:
+                result = asyncio.run(result)
+
+            final_result[KEY_VALUE] = result
+            res[0] = wrap_result(ctx,
+                instance, func, method_args, ma_types, ma_values, result, start_time,
+                json_dumps=json_dumps, json_loads=json_loads, import_fun=import_fun
+            )
+
+            try:
+                exec_other(
+                    ctx, after, true, other_callback=null, constructor=constructor, class_args=class_args,
+                    is_async=is_async, method_args=method_args,
+                    getinstance=getinstance, json_dumps=json_dumps, json_loads=json_loads, import_fun=import_fun
                 )
+            except Exception as e:
+                print(e)
 
-            func = getattr(instance, method)
-
-        if not_empty(ctx):
-            for k in ctx:
-                if is_name(k):
-                    v = ctx[k]
-                    line = k + ' = ' + json_dumps(v)
-                    exec(line)
-
-        final_result[KEY_THIS] = instance
-        ksl = size(m_kwargs)
-        start_time = cur_time_in_millis()
-
-        result = func(*ma_values[:mal - ksl], **m_kwargs)  # asyncio.run 只允许调 async 函数 is_async != false
-
-        # 自动识别 async 关键词
-        is_async = is_async or (is_async is None and is_instance(result, (types.CoroutineType, types.AsyncGeneratorType)))
-        if is_async:
-            result = asyncio.run(result)
-
-        final_result[KEY_VALUE] = result
-        res = wrap_result(
-            instance, func, method_args, ma_types, ma_values, result, start_time,
-            json_dumps=json_dumps, json_loads=json_loads, import_fun=import_fun
+        exec_other(
+            ctx, before, false, other_callback=other_callback, constructor=constructor, class_args=class_args,
+            is_async=is_async, method_args=method_args,
+            getinstance=getinstance, json_dumps=json_dumps, json_loads=json_loads, import_fun=import_fun
         )
 
-        try:
-            exec_other(ctx, after, true, callback, getinstance, json_dumps, json_loads, import_fun)
-        except Exception as e:
-            print(e)
-
     except Exception as e:
-        res = {
+        res[0] = {
             KEY_LANGUAGE: LANGUAGE,
             KEY_OK: false,
             KEY_CODE: CODE_SERVER_ERROR,
@@ -915,12 +977,13 @@ def invoke_method(
             # KEY_TRACE: e.__traceback__.__str__()
         }
 
-    if (not is_wait) and callable(callback):
-        callback(res)
-
     if not_empty(ctx):
-        res['context'] = ctx
-    return res
+        res[0][KEY_CONTEXT] = ctx
+
+    if (not is_wait[0]) and callable(callback):
+        callback(res[0])
+
+    return res[0]
 
 
 def init_args(
