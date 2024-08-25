@@ -35,6 +35,7 @@ from typing import Type
 null = None
 false = False
 true = True
+debug = false
 
 KEY_OK = 'ok'
 KEY_CODE = 'code'
@@ -674,6 +675,7 @@ def exec_other(ctx: dict, node, is_after=false, callback: callable = null, getin
     json_dumps: callable = null, json_loads: callable = null, import_fun: callable = null):
     if not_empty(node):
         rets = []
+        errs = {}
 
         nodes = node if is_list(node) else [node]
         l = size(nodes)
@@ -684,35 +686,59 @@ def exec_other(ctx: dict, node, is_after=false, callback: callable = null, getin
                 ll = size(lines)
 
                 for j in range(ll):
-                    line = lines[j]
+                    line = lines[j].strip()
                     if j < ll - 1:
                         exec(line)
                         continue
 
-                    v = eval(line)
-                    rets.append(v)
-                    ctx[str(i)] = v
+                    v = line
+                    try:
+                        v = eval(line)
+                        rets.append(v)
+                        ctx[str(i)] = v
+                    except Exception as e:
+                        if debug:
+                            raise e
+
+                        print(e)
+                        errs[str(i)] = e
+                        exec(line)
+
+                    if is_name(line):
+                        ctx[line] = v
 
             elif is_dict(nd):
-                for k, v in nd:
-                    try:
-                        v2 = eval(v) if is_str(v) and not_empty(v) else v
-                    except Exception as e:
-                        print(e)
+                try:
+                    v2 = invoke_method(nd, callback, getinstance, json_dumps, json_loads, import_fun)
+                    rets.append(v2)
+                except Exception as e:
+                    if debug:
+                        raise e
+
+                    print(e)
+                    errs[str(i)] = e
+
+                    for k in nd:
+                        v = nd[k]
                         try:
-                            v2 = invoke_method(v, callback, getinstance, json_dumps, json_loads, import_fun)
+                            v2 = eval(v) if is_str(v) and not_empty(v) else v
                         except Exception as e2:
-                            # raise e
-                            print(e)
+                            if debug:
+                                raise e2
+
+                            print(e2)
+                            errs[k] = e2
                             v2 = v
 
-                    nd[k] = v2
-                    rets.append(v2)
-                    ctx[k] = v2
+                        nd[k] = v2
+                        ctx[k] = v2
+
+                    rets.append(nd)
             else:
                 assert false, ((KEY_AFTER if is_after else KEY_BEFORE) + ':[value], all values must be str or dict!')
 
         ctx['@return'] = rets
+        ctx['@throw'] = errs
 
 
 def invoke_method(
@@ -721,6 +747,8 @@ def invoke_method(
 ) -> dict:
     start_time = time.time_ns()
     is_wait = false
+    ctx = {}
+
     try:
         getinstance = getinstance or get_instance
         json_dumps = json_dumps or to_json_str
@@ -774,7 +802,6 @@ def invoke_method(
         this = req.get(KEY_THIS)
         assert is_dict(this), (KEY_THIS + ' must be dict!')
 
-        ctx = {}
         exec_other(ctx, before, false, callback, getinstance, json_dumps, json_loads, import_fun)
 
         instance = None
@@ -848,6 +875,13 @@ def invoke_method(
 
             func = getattr(instance, method)
 
+        if not_empty(ctx):
+            for k in ctx:
+                if is_name(k):
+                    v = ctx[k]
+                    line = k + ' = ' + json_dumps(v)
+                    exec(line)
+
         final_result[KEY_THIS] = instance
         ksl = size(m_kwargs)
         start_time = cur_time_in_millis()
@@ -884,6 +918,8 @@ def invoke_method(
     if (not is_wait) and callable(callback):
         callback(res)
 
+    if not_empty(ctx):
+        res['context'] = ctx
     return res
 
 
